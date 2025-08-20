@@ -43,6 +43,7 @@ import com.rubontech.raceofwar.ui.components.LevelBar
 import com.rubontech.raceofwar.ui.components.RaceInfo
 import com.rubontech.raceofwar.ui.components.RaceButtons
 import com.rubontech.raceofwar.ui.components.SpawnButtons
+import com.rubontech.raceofwar.ui.components.ProfessionalSpawnButtons
 import com.rubontech.raceofwar.ui.theme.RaceOfWarTheme
 import kotlinx.coroutines.delay
 import androidx.compose.ui.unit.sp
@@ -88,6 +89,11 @@ fun HudScreen() {
                     currentLevel = world.getCurrentLevel()
                     currentXP = world.getCurrentXP()
                     gameState = world.gameState
+                    
+                    // Debug XP values
+                    if (currentXP > 0 || currentLevel > 1) {
+                        println("🎮 HUD Update - Level: $currentLevel, XP: $currentXP")
+                    }
                     isPaused = surface.isPaused()
                 }
             }
@@ -122,6 +128,22 @@ fun HudScreen() {
                     
                     // FPS Counter
                     FpsCounter(fps = fps)
+                    
+                    // Debug XP Test Button - Make it bigger and more visible
+                    Button(
+                        onClick = {
+                            val battleScene = gameSurface?.getSceneManager()?.getCurrentScene() as? BattleScene
+                            battleScene?.let { scene ->
+                                val world = scene.getWorld()
+                                world.addXP(10) // Test XP
+                                println("🧪 Test XP Added!")
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                        modifier = Modifier.size(80.dp, 40.dp)
+                    ) {
+                        Text("TEST\nXP", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                    }
                 }
                 
                 // Top-center XP display
@@ -204,8 +226,8 @@ fun HudScreen() {
                         modifier = Modifier.fillMaxWidth()
                     )
                     
-                    // Unit spawn buttons
-                    SpawnButtons(
+                    // Professional unit spawn buttons
+                    ProfessionalSpawnButtons(
                         gold = gold,
                         currentLevel = currentLevel,
                         selectedRace = selectedRace,

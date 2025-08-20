@@ -101,6 +101,30 @@ object GameConfig {
     const val KNIGHT_UNLOCK_LEVEL = 5
     const val HEAVY_WEAPON_UNLOCK_LEVEL = 2
 
+    // Time-based difficulty progression system
+    const val DIFFICULTY_MAX_LEVEL = 10
+    const val DIFFICULTY_LEVEL_DURATION = 60f // Her difficulty level 60 saniye
+    const val DIFFICULTY_PROGRESSION_INTERVAL = 1f // Check difficulty every 1 second
+    
+    // Difficulty progression times (in seconds)
+    val DIFFICULTY_PROGRESSION_TIMES = mapOf(
+        1 to 0f,      // 0:00 - Starting difficulty
+        2 to 60f,     // 1:00 - First difficulty increase
+        3 to 120f,    // 2:00 - Second difficulty increase
+        4 to 180f,    // 3:00 - Third difficulty increase
+        5 to 240f,    // 4:00 - Fourth difficulty increase
+        6 to 300f,    // 5:00 - Fifth difficulty increase
+        7 to 360f,    // 6:00 - Sixth difficulty increase
+        8 to 420f,    // 7:00 - Seventh difficulty increase
+        9 to 480f,    // 8:00 - Eighth difficulty increase
+        10 to 540f    // 9:00 - Max difficulty
+    )
+    
+    // Difficulty multipliers for different aspects
+    const val DIFFICULTY_GOLD_MULTIPLIER = 1.2f      // Gold generation increases by 20% per level
+    const val DIFFICULTY_ENEMY_SPAWN_MULTIPLIER = 0.9f // Enemy spawn interval decreases by 10% per level
+    const val DIFFICULTY_ENEMY_HP_MULTIPLIER = 1.15f   // Enemy HP increases by 15% per level
+    const val DIFFICULTY_ENEMY_DAMAGE_MULTIPLIER = 1.1f // Enemy damage increases by 10% per level
     
     // AI behavior
     const val ENEMY_SPAWN_INTERVAL = 3.0f // seconds

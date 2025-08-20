@@ -147,20 +147,20 @@ class RaceBackground(private val context: Context) {
     private fun createSkyGradient(race: UnitEntity.Race, height: Float): LinearGradient {
         val (color1, color2) = when (race) {
             UnitEntity.Race.NATURE_TRIBE -> Pair(
-                Color.parseColor("#87CEEB"), // Light blue
-                Color.parseColor("#98D8E8")  // Lighter blue
+                Color.parseColor("#4A2C2A"), // Dark red-brown (war torn forest)
+                Color.parseColor("#8B4513")  // Saddle brown (smoky sky)
             )
             UnitEntity.Race.MECHANICAL_LEGION -> Pair(
-                Color.parseColor("#696969"), // Dim gray
-                Color.parseColor("#A9A9A9")  // Dark gray
+                Color.parseColor("#2C2C2C"), // Dark gray (industrial pollution)
+                Color.parseColor("#696969")  // Dim gray (smog)
             )
             UnitEntity.Race.HUMAN_EMPIRE -> Pair(
-                Color.parseColor("#87CEEB"), // Light blue
-                Color.parseColor("#B0E0E6")  // Powder blue
+                Color.parseColor("#4B0000"), // Dark red (blood sky)
+                Color.parseColor("#8B0000")  // Dark red (battlefield sky)
             )
             UnitEntity.Race.DARK_CULT -> Pair(
-                Color.parseColor("#2F4F4F"), // Dark slate gray
-                Color.parseColor("#708090")  // Slate gray
+                Color.parseColor("#1A0033"), // Very dark purple (evil sky)
+                Color.parseColor("#4B0082")  // Indigo (dark magic)
             )
         }
         
@@ -170,20 +170,20 @@ class RaceBackground(private val context: Context) {
     private fun createBattlefieldGradient(race: UnitEntity.Race, y: Float, height: Float): LinearGradient {
         val (color1, color2) = when (race) {
             UnitEntity.Race.NATURE_TRIBE -> Pair(
-                Color.parseColor("#90EE90"), // Light green
-                Color.parseColor("#228B22")  // Forest green
+                Color.parseColor("#4A2C2A"), // Dark red-brown (blood soaked earth)
+                Color.parseColor("#1A1A1A")  // Near black (death ground)
             )
             UnitEntity.Race.MECHANICAL_LEGION -> Pair(
-                Color.parseColor("#708090"), // Slate gray
-                Color.parseColor("#2F4F4F")  // Dark slate gray
+                Color.parseColor("#3C3C3C"), // Dark gray (metal debris)
+                Color.parseColor("#1A1A1A")  // Near black (scorched earth)
             )
             UnitEntity.Race.HUMAN_EMPIRE -> Pair(
-                Color.parseColor("#DEB887"), // Burlywood
-                Color.parseColor("#CD853F")  // Peru
+                Color.parseColor("#654321"), // Dark brown (muddy battlefield)
+                Color.parseColor("#2F1B14")  // Very dark brown (blood mud)
             )
             UnitEntity.Race.DARK_CULT -> Pair(
-                Color.parseColor("#4B0082"), // Indigo
-                Color.parseColor("#2E0854")  // Dark indigo
+                Color.parseColor("#2E0854"), // Dark indigo (cursed ground)
+                Color.parseColor("#0D0D0D")  // Almost black (void)
             )
         }
         

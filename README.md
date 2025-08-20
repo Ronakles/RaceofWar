@@ -1,4 +1,4 @@
-# Race of War
++# Race of War
 
 **Rubontech's Race of War** - A modern Android 2D strategy game built with Kotlin and Jetpack Compose.
 

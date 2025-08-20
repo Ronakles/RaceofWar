@@ -33,9 +33,13 @@ class SpawnSystem(
     }
     
     private fun updateEnemySpawning(deltaTime: Float) {
+        // Apply difficulty multiplier to spawn rate
+        val difficultyMultiplier = world.getEnemySpawnMultiplier()
+        val adjustedSpawnInterval = GameConfig.ENEMY_SPAWN_INTERVAL * difficultyMultiplier
+        
         enemySpawnTimer += deltaTime
         
-        if (enemySpawnTimer >= GameConfig.ENEMY_SPAWN_INTERVAL) {
+        if (enemySpawnTimer >= adjustedSpawnInterval) {
             enemySpawnTimer = 0f
             spawnEnemyUnit()
         }

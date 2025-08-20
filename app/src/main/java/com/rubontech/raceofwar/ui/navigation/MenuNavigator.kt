@@ -18,14 +18,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.rubontech.raceofwar.engine.GameSurface
 import com.rubontech.raceofwar.game.entities.UnitEntity
+import com.rubontech.raceofwar.game.BattleScene
 import com.rubontech.raceofwar.game.state.GameState
+import com.rubontech.raceofwar.game.units.UnitType as ProgressionUnitType
 import com.rubontech.raceofwar.ui.screens.*
+import com.rubontech.raceofwar.ui.components.FloatingUnitButtons
+import com.rubontech.raceofwar.ui.components.DifficultyIndicator
+import com.rubontech.raceofwar.ui.components.GoldBar
+import com.rubontech.raceofwar.ui.components.LevelBar
+import com.rubontech.raceofwar.ui.utils.ScreenUtils
 import kotlinx.coroutines.delay
 
 /**
@@ -176,64 +184,175 @@ private fun GameScreen(
     onBackToMenu: () -> Unit
 ) {
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val screenHeight = configuration.screenHeightDp
+    
     val gameState = remember { GameState(selectedRace, gameSettings) }
     var progressionInfo by remember { mutableStateOf(gameState.getProgressionInfo()) }
+    var gameSurface by remember { mutableStateOf<GameSurface?>(null) }
+    
+    // Real-time game data from engine
+    var engineGold by remember { mutableStateOf(1000) } // Starting gold
+    var engineLevel by remember { mutableStateOf(1) }
+    var engineXP by remember { mutableStateOf(0) }
     
     // Debug: Print selected race and initial units
     LaunchedEffect(Unit) {
         println("🎮 Game started with race: $selectedRace")
         println("🎮 Initial available units: ${gameState.availableUnits.map { it.displayName }}")
+        println("🎮 GameState current level: ${gameState.currentLevel}")
+        println("🎮 GameState progression info: ${gameState.getProgressionInfo()}")
     }
     
-    // Update game state every second
+    // Force update GameState to get initial units
     LaunchedEffect(Unit) {
-        while (true) {
-            gameState.update()
-            progressionInfo = gameState.getProgressionInfo()
+        println("🎮 Before update - GameState level: ${gameState.currentLevel}")
+        println("🎮 Before update - GameState race: $selectedRace")
+        
+        gameState.update()
+        
+        println("🎮 After update - GameState level: ${gameState.currentLevel}")
+        println("🎮 After update - Available units: ${gameState.availableUnits.map { it.displayName }}")
+        println("🎮 After update - Units count: ${gameState.availableUnits.size}")
+        
+        // Debug UnitProgression directly
+        val directUnits = com.rubontech.raceofwar.game.units.UnitProgression.getAvailableUnits(selectedRace, gameState.currentLevel)
+        println("🎮 Direct UnitProgression - Race: $selectedRace, Level: ${gameState.currentLevel}")
+        println("🎮 Direct UnitProgression - Units: ${directUnits.map { it.displayName }}")
+        println("🎮 Direct UnitProgression - Count: ${directUnits.size}")
+    }
+    
+    // Update both UI state and real game engine data
+    LaunchedEffect(gameSurface) {
+        gameSurface?.let { surface ->
+            val sceneManager = surface.getSceneManager()
+            val currentScene = sceneManager?.getCurrentScene()
             
-            // Debug: Print current state every 5 seconds
-            if (System.currentTimeMillis() % 5000 < 1000) {
-                println("🎮 Current level: ${gameState.currentLevel}")
-                println("🎮 Available units: ${gameState.availableUnits.map { it.displayName }}")
-                println("🎮 Total spawned: ${gameState.getTotalSpawnedUnits()}")
+            if (currentScene is BattleScene) {
+                val world = currentScene.getWorld()
+                
+                // Collect real-time data from game engine
+                engineGold = world.gold
+                engineLevel = world.getCurrentLevel()
+                engineXP = world.getCurrentXP()
+                
+                println("🎯 Engine data updated - Gold: $engineGold, Level: $engineLevel, XP: $engineXP")
             }
-            
-            delay(1000) // Update every second
         }
     }
     
+    // Continuous update of engine data
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(500) // Update every 500ms
+            
+            gameSurface?.let { surface ->
+                val sceneManager = surface.getSceneManager()
+                val currentScene = sceneManager?.getCurrentScene()
+                
+                if (currentScene is BattleScene) {
+                    val world = currentScene.getWorld()
+                    
+                    // Update real-time data
+                    engineGold = world.gold
+                    engineLevel = world.getCurrentLevel()
+                    engineXP = world.getCurrentXP()
+                }
+            }
+        }
+    }
+    
+    // Calculate responsive sizes
+    val spacing = ScreenUtils.getResponsiveSpacing(screenWidth, screenHeight)
+    
     Box(modifier = Modifier.fillMaxSize()) {
+        // Game surface
         AndroidView(
             factory = { ctx ->
                 GameSurface(ctx).apply {
                     // Configure game settings here if needed
                     // The game engine will handle the rest
+                }.also { surface ->
+                    gameSurface = surface // Store reference for spawn callbacks
+                    
+                    // Set race for background
+                    surface.getSceneManager()?.getCurrentScene()?.let { scene ->
+                        if (scene is BattleScene) {
+                            scene.setRace(selectedRace)
+                        }
+                    }
                 }
             },
             modifier = Modifier.fillMaxSize(),
-            update = { gameSurface ->
+            update = { surface ->
                 // Update game surface if needed
+                gameSurface = surface
             }
         )
         
-        // Progression UI Overlay (minimalized, top-left)
-        ProgressionOverlay(
-            progressionInfo = progressionInfo,
-            selectedRace = selectedRace,
-            availableUnits = gameState.availableUnits,
-            gameState = gameState,
-            modifier = Modifier.align(Alignment.TopStart)
+        // Top-left: Gold display
+        GoldBar(
+            gold = engineGold,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(8.dp)
         )
         
-        // Unit Spawn UI Overlay (bottom-center, more visible)
-        UnitSpawnOverlay(
-            availableUnits = gameState.availableUnits,
-            selectedRace = selectedRace,
-            gameState = gameState,
+        // Top-center: Level and XP display
+        LevelBar(
+            currentLevel = engineLevel,
+            currentXP = engineXP,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 8.dp)
+        )
+        
+        // Difficulty indicator (below XP bar)
+        DifficultyIndicator(
+            currentLevel = engineLevel,
+            progress = engineXP.toFloat() / 100f,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 60.dp) // Below the level bar
+        )
+        
+        // Unit spawn buttons (at bottom with higher z-index)
+        Surface(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 32.dp) // More padding to ensure visibility
-        )
+                .padding(bottom = 16.dp)
+                .fillMaxWidth(),
+            color = Color.Transparent,
+            shadowElevation = 8.dp // Higher z-index
+        ) {
+            FloatingUnitButtons(
+                availableUnits = gameState.availableUnits,
+                selectedRace = selectedRace,
+                gameState = gameState,
+                onSpawnUnit = { unitType ->
+                    // Convert UI unit type to engine unit type
+                    val engineUnitType = convertToEngineUnitType(unitType)
+                    if (engineUnitType != null) {
+                        // Try to spawn unit in game engine
+                        val success = gameSurface?.getSceneManager()?.getCurrentScene()?.let { scene ->
+                            if (scene is BattleScene) {
+                                scene.getWorld().spawnPlayerUnit(engineUnitType, selectedRace)
+                            } else false
+                        } ?: false
+                        
+                        if (success) {
+                            // Update UI state
+                            gameState.spawnUnit(unitType)
+                            println("✅ Successfully spawned unit: $unitType")
+                        } else {
+                            println("❌ Failed to spawn unit: $unitType")
+                        }
+                    }
+                },
+                realGold = engineGold
+            )
+        }
         
         // Floating back button overlay (top-right to avoid conflict with progression)
         FloatingActionButton(
@@ -329,186 +448,58 @@ private fun ProgressionOverlay(
 }
 
 /**
- * Spawn a unit in the game
+ * Convert GameState UnitType to GameEngine UnitType
  */
-private fun spawnUnit(unitType: com.rubontech.raceofwar.game.units.UnitType, gameState: GameState) {
-    val success = gameState.spawnUnit(unitType)
-    
-    if (success) {
-        val count = gameState.getSpawnedUnitCount(unitType)
-        println("🎯 Spawning unit: ${unitType.displayName} (Total: $count)")
+private fun convertToEngineUnitType(gameStateUnitType: ProgressionUnitType): UnitEntity.UnitType? {
+    return when (gameStateUnitType) {
+        // Human Empire Units
+        ProgressionUnitType.HUMAN_KILICU -> UnitEntity.UnitType.SPEARMAN
+        ProgressionUnitType.HUMAN_OKCU -> UnitEntity.UnitType.ARCHER
+        ProgressionUnitType.HUMAN_ZIRHLI_PIYADE -> UnitEntity.UnitType.SPEARMAN
+        ProgressionUnitType.HUMAN_ATLI -> UnitEntity.UnitType.CAVALRY
+        ProgressionUnitType.HUMAN_MIZRAKCI -> UnitEntity.UnitType.SPEARMAN
+        ProgressionUnitType.HUMAN_SIFACI -> UnitEntity.UnitType.HEAVY_WEAPON
+        ProgressionUnitType.HUMAN_MANCINIK -> UnitEntity.UnitType.HEAVY_WEAPON
+        ProgressionUnitType.HUMAN_CIFT_OK_ATAN_OKCU -> UnitEntity.UnitType.ARCHER
+        ProgressionUnitType.HUMAN_KOMUTAN -> UnitEntity.UnitType.KNIGHT
+        ProgressionUnitType.HUMAN_LIDER -> UnitEntity.UnitType.KNIGHT
         
-        // TODO: Integrate with actual game engine
-        // This would typically:
-        // 1. Create unit entity
-        // 2. Add to game world
-        // 3. Play spawn animation
-        // 4. Update UI
+        // Dark Cultist Units
+        ProgressionUnitType.DARK_GOLGE_DRUID -> UnitEntity.UnitType.SPEARMAN
+        ProgressionUnitType.DARK_CADI -> UnitEntity.UnitType.ARCHER
+        ProgressionUnitType.DARK_MIZRAKCI -> UnitEntity.UnitType.SPEARMAN
+        ProgressionUnitType.DARK_ATLI -> UnitEntity.UnitType.CAVALRY
+        ProgressionUnitType.DARK_ATES_CUCESI -> UnitEntity.UnitType.HEAVY_WEAPON
+        ProgressionUnitType.DARK_KARANLIK_SOVALYE -> UnitEntity.UnitType.KNIGHT
+        ProgressionUnitType.DARK_KUTSA_SAPAN -> UnitEntity.UnitType.HEAVY_WEAPON
+        ProgressionUnitType.DARK_SEYTAN_SAPAN -> UnitEntity.UnitType.HEAVY_WEAPON
+        ProgressionUnitType.DARK_CIFT_TIRMIK_SAPAN -> UnitEntity.UnitType.HEAVY_WEAPON
+        ProgressionUnitType.DARK_SAPAN_KARAM -> UnitEntity.UnitType.HEAVY_WEAPON
         
-        println("✅ Unit spawned successfully: ${unitType.displayName}")
-    } else {
-        println("❌ Unit not available yet: ${unitType.displayName}")
-    }
-}
-
-@Composable
-private fun UnitSpawnOverlay(
-    availableUnits: List<com.rubontech.raceofwar.game.units.UnitType>,
-    selectedRace: UnitEntity.Race,
-    gameState: GameState,
-    modifier: Modifier = Modifier
-) {
-    // Debug: Print overlay state
-    LaunchedEffect(availableUnits) {
-        println("🎯 UnitSpawnOverlay - Available units: ${availableUnits.map { it.displayName }}")
-        println("🎯 UnitSpawnOverlay - Selected race: $selectedRace")
-    }
-    
-    // TEST: Always show overlay even if no units
-    Card(
-        modifier = modifier
-            .padding(16.dp)
-            .fillMaxWidth() // Make it full width
-            .height(200.dp), // Fixed height to ensure visibility
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF2D3748) // More opaque, easier to see
-        ),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp)
-        ) {
-            // Header with race info - BIGGER
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(bottom = 12.dp)
-            ) {
-                Text(
-                    text = when (selectedRace) {
-                        UnitEntity.Race.HUMAN_EMPIRE -> "👑"
-                        UnitEntity.Race.DARK_CULT -> "☠️"
-                        UnitEntity.Race.NATURE_TRIBE -> "🌿"
-                        UnitEntity.Race.MECHANICAL_LEGION -> "⚙️"
-                    },
-                    fontSize = 24.sp // BIGGER
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = "Available Units (${availableUnits.size})",
-                    fontSize = 20.sp, // BIGGER
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-            }
-            
-            // Unit grid
-            if (availableUnits.isNotEmpty()) {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(availableUnits) { unitType ->
-                        UnitSpawnButton(
-                            unitType = unitType,
-                            gameState = gameState,
-                            onClick = {
-                                // Spawn unit logic
-                                spawnUnit(unitType, gameState)
-                            }
-                        )
-                    }
-                }
-            } else {
-                // Show message when no units available - BIGGER
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 32.dp)
-                ) {
-                    Text(
-                        text = "❌",
-                        fontSize = 48.sp,
-                        color = Color(0xFFEF4444)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "No units available yet...",
-                        fontSize = 18.sp,
-                        color = Color(0xFFEF4444),
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Wait for level progression",
-                        fontSize = 14.sp,
-                        color = Color(0xFF6B7280)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun UnitSpawnButton(
-    unitType: com.rubontech.raceofwar.game.units.UnitType,
-    gameState: GameState,
-    onClick: () -> Unit
-) {
-    val unlockLevel = gameState.getUnitUnlockLevel(unitType)
-    val isAvailable = gameState.isUnitAvailable(unitType)
-    val currentLevel = gameState.currentLevel
-    val spawnCount = gameState.getSpawnedUnitCount(unitType)
-    
-    Button(
-        onClick = onClick,
-        enabled = isAvailable,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (isAvailable) Color(0xFF374151) else Color(0xFF1F2937),
-            disabledContainerColor = Color(0xFF1F2937)
-        ),
-        shape = RoundedCornerShape(8.dp),
-        modifier = Modifier.width(90.dp).height(70.dp)
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Unit icon (using first letter for now)
-            Text(
-                text = unitType.displayName.first().toString(),
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = if (isAvailable) Color.White else Color(0xFF6B7280)
-            )
-            
-            // Unit name (shortened)
-            Text(
-                text = unitType.displayName.split(" ").first(),
-                fontSize = 11.sp,
-                color = if (isAvailable) Color(0xFFB8C5D6) else Color(0xFF6B7280),
-                maxLines = 1
-            )
-            
-            // Spawn count and level
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (spawnCount > 0) {
-                    Text(
-                        text = "$spawnCount",
-                        fontSize = 10.sp,
-                        color = Color(0xFFFFD700),
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.width(2.dp))
-                }
-                
-                Text(
-                    text = if (isAvailable) "Lv$unlockLevel ✓" else "Lv$unlockLevel 🔒",
-                    fontSize = 9.sp,
-                    color = if (isAvailable) Color(0xFF10B981) else Color(0xFFEF4444),
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
+        // Elven Units
+        ProgressionUnitType.ELF_HAFIF_ELF_ASKER -> UnitEntity.UnitType.SPEARMAN
+        ProgressionUnitType.ELF_ELF_OKCUSU -> UnitEntity.UnitType.ARCHER
+        ProgressionUnitType.ELF_ELF_ATLI -> UnitEntity.UnitType.CAVALRY
+        ProgressionUnitType.ELF_ELF_MIZRAKCI -> UnitEntity.UnitType.SPEARMAN
+        ProgressionUnitType.ELF_BUYUCU -> UnitEntity.UnitType.HEAVY_WEAPON
+        ProgressionUnitType.ELF_SIFACI_ELF -> UnitEntity.UnitType.HEAVY_WEAPON
+        ProgressionUnitType.ELF_ELIT_MANCINIK -> UnitEntity.UnitType.HEAVY_WEAPON
+        ProgressionUnitType.ELF_CIFT_OK_SAPNAC_ISI -> UnitEntity.UnitType.ARCHER
+        ProgressionUnitType.ELF_ELF_PRENSI -> UnitEntity.UnitType.KNIGHT
+        ProgressionUnitType.ELF_ELF_PRENSESI -> UnitEntity.UnitType.KNIGHT
+        
+        // Mechanical Legion Units
+        ProgressionUnitType.MECH_BASIT_DROID -> UnitEntity.UnitType.SPEARMAN
+        ProgressionUnitType.MECH_LAZER_TARET -> UnitEntity.UnitType.ARCHER
+        ProgressionUnitType.MECH_MIZRAKCI -> UnitEntity.UnitType.SPEARMAN
+        ProgressionUnitType.MECH_KALKANLI -> UnitEntity.UnitType.SPEARMAN
+        ProgressionUnitType.MECH_ZIRHLI_DROID -> UnitEntity.UnitType.HEAVY_WEAPON
+        ProgressionUnitType.MECH_HIZLI_DRONE -> UnitEntity.UnitType.CAVALRY
+        ProgressionUnitType.MECH_TANK_DROID -> UnitEntity.UnitType.HEAVY_WEAPON
+        ProgressionUnitType.MECH_ROKETATAR_DROID -> UnitEntity.UnitType.HEAVY_WEAPON
+        ProgressionUnitType.MECH_MECHA_SAVASCI -> UnitEntity.UnitType.KNIGHT
+        ProgressionUnitType.MECH_PLAZMA_TOPU -> UnitEntity.UnitType.HEAVY_WEAPON
+        
+        else -> UnitEntity.UnitType.SPEARMAN // Default fallback
     }
 }

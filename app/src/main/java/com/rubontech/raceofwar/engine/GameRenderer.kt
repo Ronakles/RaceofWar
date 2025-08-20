@@ -21,13 +21,13 @@ class GameRenderer(private val sceneManager: SceneManager) {
     
     // Reusable paint objects to avoid GC pressure
     private val backgroundPaint = Paint().apply {
-        color = Color.parseColor("#87CEEB") // Sky blue
+        color = Color.parseColor("#2C1810") // Dark atmospheric brown
         style = Paint.Style.FILL
     }
     
     fun render(canvas: Canvas) {
-        // Clear screen with sky background
-        canvas.drawColor(Color.parseColor("#87CEEB"))
+        // Clear screen with dark atmospheric background
+        canvas.drawColor(Color.parseColor("#2C1810"))
         
         // Render current scene
         sceneManager.render(canvas)

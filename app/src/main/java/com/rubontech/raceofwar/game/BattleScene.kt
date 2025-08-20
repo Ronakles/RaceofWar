@@ -19,9 +19,12 @@ import com.rubontech.raceofwar.gfx.RaceBackground
 /**
  * Main battle scene where the gameplay happens
  */
-class BattleScene(private val context: android.content.Context) : Scene() {
+class BattleScene(
+    private val context: android.content.Context,
+    private val gameSettings: com.rubontech.raceofwar.ui.screens.GameSettings? = null
+) : Scene() {
     
-    private val world = World(context)
+    private val world = World(context, gameSettings)
     private val background = ParallaxBackground()
     private val raceBackground = RaceBackground(context)
     private var debugMode = false // Debug mode disabled to remove placeholder lines
@@ -34,8 +37,8 @@ class BattleScene(private val context: android.content.Context) : Scene() {
     }
     
     private val linePaint = Paint().apply {
-        color = Color.parseColor("#8B4513") // Brown
-        strokeWidth = 4f
+        color = Color.parseColor("#8B0000") // Dark red - blood line
+        strokeWidth = 6f
     }
     
     override fun update(touchEvents: List<InputController.TouchEvent>) {
@@ -53,8 +56,8 @@ class BattleScene(private val context: android.content.Context) : Scene() {
         // Render race-themed background (overlay)
         raceBackground.render(canvas)
         
-        // Draw battle lane line
-        linePaint.color = Color.parseColor("#8B4513")
+        // Draw battle lane line (blood red battlefield line)
+        linePaint.color = Color.parseColor("#8B0000")
         canvas.drawLine(0f, GameConfig.laneY, width.toFloat(), GameConfig.laneY, linePaint)
         
         // Render all entities

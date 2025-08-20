@@ -53,8 +53,10 @@ class ParallaxLayer(
 class ParallaxBackground {
     
     private val layers = listOf(
-        ParallaxLayer(10f, Color.parseColor("#87CEEB"), Color.parseColor("#98D8E8")),
-        ParallaxLayer(20f, Color.parseColor("#90EE90"), Color.parseColor("#228B22"))
+        // Sky: Dark stormy atmosphere with red/orange sunset
+        ParallaxLayer(10f, Color.parseColor("#2C1810"), Color.parseColor("#8B4513")), // Dark brown to saddle brown
+        // Ground: Dark battlefield with blood/dirt tones  
+        ParallaxLayer(20f, Color.parseColor("#4A2C2A"), Color.parseColor("#1A1A1A"))  // Dark red-brown to near black
     )
     
     fun update(deltaTime: Float) {

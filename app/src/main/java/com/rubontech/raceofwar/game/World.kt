@@ -15,11 +15,15 @@ import com.rubontech.raceofwar.game.systems.MovementSystem
 import com.rubontech.raceofwar.game.systems.SpawnSystem
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlin.math.pow
 
 /**
  * Main game world containing all entities and systems
  */
-class World(private val context: android.content.Context) {
+class World(
+    private val context: android.content.Context,
+    private val gameSettings: com.rubontech.raceofwar.ui.screens.GameSettings? = null
+) {
     
     // Entity lists
     private val playerUnits = mutableListOf<UnitEntity>()
@@ -43,10 +47,56 @@ class World(private val context: android.content.Context) {
     var gameState = GameState.PLAYING
         private set
     
-    // Level system
-    private var currentLevel = 5
+    // Level system - difficulty based starting values
+    private var currentLevel = getStartingLevel()
     private var currentXP = 0
-    private var totalXP = 400 // Level 5 için gerekli XP
+    private var totalXP = 0
+    
+    // Time-based difficulty system
+    private var gameStartTime: Long = System.currentTimeMillis()
+    private var currentDifficultyLevel = 1
+    private var difficultyTimer = 0f
+    
+    private fun getStartingLevel(): Int {
+        return when (gameSettings?.difficulty) {
+            com.rubontech.raceofwar.ui.screens.Difficulty.EASY -> 1
+            com.rubontech.raceofwar.ui.screens.Difficulty.NORMAL -> 1
+            com.rubontech.raceofwar.ui.screens.Difficulty.HARD -> 1
+            com.rubontech.raceofwar.ui.screens.Difficulty.EXPERT -> 1
+            null -> 1 // Default to level 1
+        }
+    }
+    
+    // Get current difficulty level based on game time
+    private fun calculateCurrentDifficultyLevel(): Int {
+        val gameTimeSeconds = (System.currentTimeMillis() - gameStartTime) / 1000f
+        var difficulty = 1
+        
+        for ((level, timeRequired) in GameConfig.DIFFICULTY_PROGRESSION_TIMES) {
+            if (gameTimeSeconds >= timeRequired) {
+                difficulty = level
+            } else {
+                break
+            }
+        }
+        
+        return difficulty.coerceAtMost(GameConfig.DIFFICULTY_MAX_LEVEL)
+    }
+    
+    // Get difficulty multiplier for gold generation
+    fun getGoldGenerationMultiplier(): Float {
+        return GameConfig.DIFFICULTY_GOLD_MULTIPLIER.pow(currentDifficultyLevel - 1)
+    }
+    
+    // Get difficulty multiplier for enemy spawn rate
+    fun getEnemySpawnMultiplier(): Float {
+        return GameConfig.DIFFICULTY_ENEMY_SPAWN_MULTIPLIER.pow(currentDifficultyLevel - 1)
+    }
+    
+    // Get difficulty multiplier for enemy stats
+    fun getEnemyStatsMultiplier(): Float {
+        return GameConfig.DIFFICULTY_ENEMY_HP_MULTIPLIER.pow(currentDifficultyLevel - 1)
+    }
     
     // Observable state for UI
     private val _goldFlow = MutableStateFlow(gold)
@@ -88,12 +138,24 @@ class World(private val context: android.content.Context) {
     fun update(deltaTime: Float) {
         if (gameState != GameState.PLAYING) return
         
-        // Update gold generation
+        // Update gold generation with difficulty multiplier
         goldTimer += deltaTime
         if (goldTimer >= 1f) {
             goldTimer -= 1f
-            gold += GameConfig.GOLD_PER_SEC
+            val goldMultiplier = getGoldGenerationMultiplier()
+            gold += (GameConfig.GOLD_PER_SEC * goldMultiplier).toInt()
             _goldFlow.value = gold
+        }
+        
+        // Update difficulty level based on game time
+        difficultyTimer += deltaTime
+        if (difficultyTimer >= GameConfig.DIFFICULTY_PROGRESSION_INTERVAL) {
+            difficultyTimer -= GameConfig.DIFFICULTY_PROGRESSION_INTERVAL
+            val newDifficultyLevel = calculateCurrentDifficultyLevel()
+            if (newDifficultyLevel != currentDifficultyLevel) {
+                currentDifficultyLevel = newDifficultyLevel
+                onDifficultyLevelUp(newDifficultyLevel)
+            }
         }
         
         // Combine all units for collision checking
@@ -118,6 +180,14 @@ class World(private val context: android.content.Context) {
         
         // Check win conditions
         checkWinConditions()
+    }
+    
+    // Called when difficulty level increases
+    private fun onDifficultyLevelUp(newDifficultyLevel: Int) {
+        println("🎯 Difficulty Level Up! New difficulty: $newDifficultyLevel")
+        println("💰 Gold multiplier: ${getGoldGenerationMultiplier()}")
+        println("👹 Enemy spawn multiplier: ${getEnemySpawnMultiplier()}")
+        println("💪 Enemy stats multiplier: ${getEnemyStatsMultiplier()}")
     }
     
     private fun cleanupDeadEntities() {
@@ -155,6 +225,24 @@ class World(private val context: android.content.Context) {
     fun getCurrentLevel(): Int = currentLevel
     fun getCurrentXP(): Int = currentXP
     
+    // Difficulty system getters
+    fun getCurrentDifficultyLevel(): Int = currentDifficultyLevel
+    fun getGameTimeSeconds(): Float = (System.currentTimeMillis() - gameStartTime) / 1000f
+    fun getDifficultyProgress(): Float = getGameTimeSeconds() / (GameConfig.DIFFICULTY_PROGRESSION_TIMES[GameConfig.DIFFICULTY_MAX_LEVEL] ?: 540f)
+    
+    fun setDifficulty(difficulty: com.rubontech.raceofwar.ui.screens.Difficulty) {
+        // Reset to appropriate starting values based on difficulty
+        currentLevel = 1 // All difficulties start at level 1
+        currentXP = 0
+        totalXP = 0
+        
+        // Difficulty affects other parameters like enemy spawn rate, gold generation, etc.
+        // For now, all start at level 1 but could have different progression rates
+        
+        _levelFlow.value = currentLevel
+        _xpFlow.value = currentXP
+    }
+    
     fun addPlayerUnit(unit: UnitEntity) {
         playerUnits.add(unit)
     }
@@ -179,6 +267,11 @@ class World(private val context: android.content.Context) {
         currentLevel = 1
         currentXP = 0
         totalXP = 0
+        
+        // Reset difficulty system
+        gameStartTime = System.currentTimeMillis()
+        currentDifficultyLevel = 1
+        difficultyTimer = 0f
         
         // Reset bases
         playerBase = BaseEntity(
@@ -205,6 +298,8 @@ class World(private val context: android.content.Context) {
         totalXP += amount
         _xpFlow.value = currentXP
         
+        println("⭐ XP Added: $amount | Current XP: $currentXP | Level: $currentLevel")
+        
         // Check for level up
         checkLevelUp()
     }
@@ -212,10 +307,13 @@ class World(private val context: android.content.Context) {
     private fun checkLevelUp() {
         val xpNeeded = currentLevel * GameConfig.XP_NEEDED_PER_LEVEL
         if (currentXP >= xpNeeded && currentLevel < GameConfig.MAX_LEVEL) {
+            val oldLevel = currentLevel
             currentLevel++
             currentXP -= (currentLevel - 1) * GameConfig.XP_NEEDED_PER_LEVEL
             _levelFlow.value = currentLevel
             _xpFlow.value = currentXP
+            
+            println("🆙 LEVEL UP! $oldLevel → $currentLevel | Remaining XP: $currentXP")
         }
     }
     

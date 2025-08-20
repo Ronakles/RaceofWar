@@ -46,6 +46,9 @@ fun LevelBar(
     val screenWidth = configuration.screenWidthDp
     val screenHeight = configuration.screenHeightDp
     
+    // Debug XP values
+    println("📊 LevelBar - Level: $currentLevel, XP: $currentXP")
+    
     // Calculate responsive sizes
     val spacing = ScreenUtils.getResponsiveSpacing(screenWidth, screenHeight)
     val fontSize = ScreenUtils.getResponsiveFontSize(screenWidth, screenHeight, 14f)

@@ -116,6 +116,18 @@ class GameState(
     }
     
     /**
+     * Remove one unit from spawn queue
+     */
+    fun removeFromQueue(unitType: UnitType): Boolean {
+        val currentCount = _spawnedUnits.getOrDefault(unitType, 0)
+        if (currentCount > 0) {
+            _spawnedUnits[unitType] = currentCount - 1
+            return true
+        }
+        return false
+    }
+    
+    /**
      * Get spawned unit count for a specific type
      */
     fun getSpawnedUnitCount(unitType: UnitType): Int {
