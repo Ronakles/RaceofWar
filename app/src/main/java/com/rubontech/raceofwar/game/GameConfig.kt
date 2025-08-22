@@ -88,11 +88,7 @@ object GameConfig {
     const val HEAVY_WEAPON_COST = 125
 
     
-    // Level system
-    const val MAX_LEVEL = 5
-    const val XP_PER_ENEMY_KILL = 10
-    const val XP_PER_BASE_DAMAGE = 5
-    const val XP_NEEDED_PER_LEVEL = 100 // Her level için gerekli XP
+    // Old level system removed - now using XP tiers in UnitProgression
     
     // Unit unlock levels
     const val SPEARMAN_UNLOCK_LEVEL = 1

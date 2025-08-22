@@ -33,17 +33,18 @@ import kotlin.math.sin
 class SpawnCooldownManager {
     private val cooldowns = mutableMapOf<UnitEntity.UnitType, Long>()
     private val cooldownDurations = mapOf(
-        UnitEntity.UnitType.SPEARMAN to 1000L, // 1 second
-        UnitEntity.UnitType.ARCHER to 1500L,   // 1.5 seconds
+        UnitEntity.UnitType.SPEARMAN to 2000L, // 2 seconds
+        UnitEntity.UnitType.ARCHER to 2000L,   // 2 seconds
         UnitEntity.UnitType.HEAVY_WEAPON to 2000L, // 2 seconds
-        UnitEntity.UnitType.CAVALRY to 2500L,  // 2.5 seconds
-        UnitEntity.UnitType.KNIGHT to 3000L,   // 3 seconds
-        UnitEntity.UnitType.ELF_KNIGHT to 3000L // 3 seconds
+        UnitEntity.UnitType.CAVALRY to 2000L,  // 2 seconds
+        UnitEntity.UnitType.KNIGHT to 2000L,   // 2 seconds
+        UnitEntity.UnitType.ELF_KNIGHT to 2000L // 2 seconds
     )
     
     fun startCooldown(unitType: UnitEntity.UnitType) {
         val duration = cooldownDurations[unitType] ?: 1000L
         cooldowns[unitType] = System.currentTimeMillis() + duration
+        println("⏰ Cooldown started for $unitType - Duration: ${duration}ms")
     }
     
     fun isOnCooldown(unitType: UnitEntity.UnitType): Boolean {

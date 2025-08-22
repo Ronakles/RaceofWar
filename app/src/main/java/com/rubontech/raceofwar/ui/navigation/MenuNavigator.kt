@@ -30,9 +30,9 @@ import com.rubontech.raceofwar.game.state.GameState
 import com.rubontech.raceofwar.game.units.UnitType as ProgressionUnitType
 import com.rubontech.raceofwar.ui.screens.*
 import com.rubontech.raceofwar.ui.components.FloatingUnitButtons
-import com.rubontech.raceofwar.ui.components.DifficultyIndicator
 import com.rubontech.raceofwar.ui.components.GoldBar
-import com.rubontech.raceofwar.ui.components.LevelBar
+import com.rubontech.raceofwar.ui.components.XPBar
+import com.rubontech.raceofwar.ui.components.GameTimeDisplay
 import com.rubontech.raceofwar.ui.utils.ScreenUtils
 import kotlinx.coroutines.delay
 
@@ -200,25 +200,32 @@ private fun GameScreen(
     // Debug: Print selected race and initial units
     LaunchedEffect(Unit) {
         println("🎮 Game started with race: $selectedRace")
+        println("🎮 GameState game time: ${gameState.getGameTimeMinutes()} minutes")
+        println("🎮 GameState current XP: ${gameState.currentXP}")
         println("🎮 Initial available units: ${gameState.availableUnits.map { it.displayName }}")
-        println("🎮 GameState current level: ${gameState.currentLevel}")
         println("🎮 GameState progression info: ${gameState.getProgressionInfo()}")
+        
+        // Test XP calculation directly
+        val testXP = com.rubontech.raceofwar.game.units.UnitProgression.getCurrentXP(2.0) // 2 minutes
+        println("🧪 Test: 2 minutes should give ${testXP} XP")
+        val testUnits = com.rubontech.raceofwar.game.units.UnitProgression.getAvailableUnits(selectedRace, testXP)
+        println("🧪 Test: At ${testXP} XP, units should be: ${testUnits.map { it.displayName }}")
     }
     
     // Force update GameState to get initial units
     LaunchedEffect(Unit) {
-        println("🎮 Before update - GameState level: ${gameState.currentLevel}")
+        println("🎮 Before update - GameState XP: ${gameState.currentXP}")
         println("🎮 Before update - GameState race: $selectedRace")
         
         gameState.update()
         
-        println("🎮 After update - GameState level: ${gameState.currentLevel}")
+        println("🎮 After update - GameState XP: ${gameState.currentXP}")
         println("🎮 After update - Available units: ${gameState.availableUnits.map { it.displayName }}")
         println("🎮 After update - Units count: ${gameState.availableUnits.size}")
         
         // Debug UnitProgression directly
-        val directUnits = com.rubontech.raceofwar.game.units.UnitProgression.getAvailableUnits(selectedRace, gameState.currentLevel)
-        println("🎮 Direct UnitProgression - Race: $selectedRace, Level: ${gameState.currentLevel}")
+        val directUnits = com.rubontech.raceofwar.game.units.UnitProgression.getAvailableUnits(selectedRace, gameState.currentXP)
+        println("🎮 Direct UnitProgression - Race: $selectedRace, XP: ${gameState.currentXP}")
         println("🎮 Direct UnitProgression - Units: ${directUnits.map { it.displayName }}")
         println("🎮 Direct UnitProgression - Count: ${directUnits.size}")
     }
@@ -247,6 +254,9 @@ private fun GameScreen(
         while (true) {
             kotlinx.coroutines.delay(500) // Update every 500ms
             
+            // Update GameState first (this calculates XP based on time)
+            gameState.update()
+            
             gameSurface?.let { surface ->
                 val sceneManager = surface.getSceneManager()
                 val currentScene = sceneManager?.getCurrentScene()
@@ -260,6 +270,9 @@ private fun GameScreen(
                     engineXP = world.getCurrentXP()
                 }
             }
+            
+            // Debug XP progression every update
+            println("🔄 Continuous Update - Time: ${String.format("%.1f", gameState.getGameTimeMinutes())}min, XP: ${gameState.currentXP}, Units: ${gameState.availableUnits.size}")
         }
     }
     
@@ -291,30 +304,31 @@ private fun GameScreen(
             }
         )
         
-        // Top-left: Gold display
-        GoldBar(
-            gold = engineGold,
+        // Top-left: Gold display and XP bar
+        Column(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(8.dp)
-        )
+                .padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            GoldBar(
+                gold = engineGold
+            )
+            
+            // XP bar below gold, same width as gold bar
+            XPBar(
+                currentXP = gameState.currentXP,
+                nextXPThreshold = gameState.getNextXPThreshold(),
+                currentTier = gameState.getProgressionInfo().currentTier
+            )
+        }
         
-        // Top-center: Level and XP display
-        LevelBar(
-            currentLevel = engineLevel,
-            currentXP = engineXP,
+        // Top-center: Game time display
+        GameTimeDisplay(
+            gameTimeMinutes = gameState.getGameTimeMinutes(),
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 8.dp)
-        )
-        
-        // Difficulty indicator (below XP bar)
-        DifficultyIndicator(
-            currentLevel = engineLevel,
-            progress = engineXP.toFloat() / 100f,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 60.dp) // Below the level bar
         )
         
         // Unit spawn buttons (at bottom with higher z-index)
@@ -331,23 +345,36 @@ private fun GameScreen(
                 selectedRace = selectedRace,
                 gameState = gameState,
                 onSpawnUnit = { unitType ->
+                    println("🎯 Spawn request for: ${unitType.displayName}")
+                    
                     // Convert UI unit type to engine unit type
-                    val engineUnitType = convertToEngineUnitType(unitType)
-                    if (engineUnitType != null) {
-                        // Try to spawn unit in game engine
-                        val success = gameSurface?.getSceneManager()?.getCurrentScene()?.let { scene ->
-                            if (scene is BattleScene) {
-                                scene.getWorld().spawnPlayerUnit(engineUnitType, selectedRace)
-                            } else false
-                        } ?: false
-                        
-                        if (success) {
-                            // Update UI state
-                            gameState.spawnUnit(unitType)
-                            println("✅ Successfully spawned unit: $unitType")
+                    val engineUnitType = com.rubontech.raceofwar.ui.utils.UnitMapping.convertToEngineUnitType(unitType)
+                    println("🔄 Converted to engine type: $engineUnitType")
+                    
+                    // Try to spawn unit in game engine
+                    val success = gameSurface?.getSceneManager()?.getCurrentScene()?.let { scene ->
+                        println("🎮 Scene found: ${scene::class.simpleName}")
+                        if (scene is BattleScene) {
+                            val world = scene.getWorld()
+                            println("💰 Gold check - Current: ${world.gold}, Required: ${com.rubontech.raceofwar.ui.utils.UnitMapping.getUnitCost(unitType)}")
+                            val spawnResult = world.spawnPlayerUnit(engineUnitType, selectedRace)
+                            println("🚀 Spawn result: $spawnResult")
+                            spawnResult
                         } else {
-                            println("❌ Failed to spawn unit: $unitType")
+                            println("❌ Scene is not BattleScene")
+                            false
                         }
+                    } ?: run {
+                        println("❌ No scene found")
+                        false
+                    }
+                    
+                    if (success) {
+                        // Update UI state
+                        gameState.spawnUnit(unitType)
+                        println("✅ Successfully spawned unit: ${unitType.displayName}")
+                    } else {
+                        println("❌ Failed to spawn unit: ${unitType.displayName}")
                     }
                 },
                 realGold = engineGold
@@ -407,7 +434,7 @@ private fun ProgressionOverlay(
             // Level and time
             Column {
                 Text(
-                    text = "Lvl ${progressionInfo.currentLevel}",
+                    text = "${progressionInfo.currentXP} XP",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
@@ -447,59 +474,4 @@ private fun ProgressionOverlay(
     }
 }
 
-/**
- * Convert GameState UnitType to GameEngine UnitType
- */
-private fun convertToEngineUnitType(gameStateUnitType: ProgressionUnitType): UnitEntity.UnitType? {
-    return when (gameStateUnitType) {
-        // Human Empire Units
-        ProgressionUnitType.HUMAN_KILICU -> UnitEntity.UnitType.SPEARMAN
-        ProgressionUnitType.HUMAN_OKCU -> UnitEntity.UnitType.ARCHER
-        ProgressionUnitType.HUMAN_ZIRHLI_PIYADE -> UnitEntity.UnitType.SPEARMAN
-        ProgressionUnitType.HUMAN_ATLI -> UnitEntity.UnitType.CAVALRY
-        ProgressionUnitType.HUMAN_MIZRAKCI -> UnitEntity.UnitType.SPEARMAN
-        ProgressionUnitType.HUMAN_SIFACI -> UnitEntity.UnitType.HEAVY_WEAPON
-        ProgressionUnitType.HUMAN_MANCINIK -> UnitEntity.UnitType.HEAVY_WEAPON
-        ProgressionUnitType.HUMAN_CIFT_OK_ATAN_OKCU -> UnitEntity.UnitType.ARCHER
-        ProgressionUnitType.HUMAN_KOMUTAN -> UnitEntity.UnitType.KNIGHT
-        ProgressionUnitType.HUMAN_LIDER -> UnitEntity.UnitType.KNIGHT
-        
-        // Dark Cultist Units
-        ProgressionUnitType.DARK_GOLGE_DRUID -> UnitEntity.UnitType.SPEARMAN
-        ProgressionUnitType.DARK_CADI -> UnitEntity.UnitType.ARCHER
-        ProgressionUnitType.DARK_MIZRAKCI -> UnitEntity.UnitType.SPEARMAN
-        ProgressionUnitType.DARK_ATLI -> UnitEntity.UnitType.CAVALRY
-        ProgressionUnitType.DARK_ATES_CUCESI -> UnitEntity.UnitType.HEAVY_WEAPON
-        ProgressionUnitType.DARK_KARANLIK_SOVALYE -> UnitEntity.UnitType.KNIGHT
-        ProgressionUnitType.DARK_KUTSA_SAPAN -> UnitEntity.UnitType.HEAVY_WEAPON
-        ProgressionUnitType.DARK_SEYTAN_SAPAN -> UnitEntity.UnitType.HEAVY_WEAPON
-        ProgressionUnitType.DARK_CIFT_TIRMIK_SAPAN -> UnitEntity.UnitType.HEAVY_WEAPON
-        ProgressionUnitType.DARK_SAPAN_KARAM -> UnitEntity.UnitType.HEAVY_WEAPON
-        
-        // Elven Units
-        ProgressionUnitType.ELF_HAFIF_ELF_ASKER -> UnitEntity.UnitType.SPEARMAN
-        ProgressionUnitType.ELF_ELF_OKCUSU -> UnitEntity.UnitType.ARCHER
-        ProgressionUnitType.ELF_ELF_ATLI -> UnitEntity.UnitType.CAVALRY
-        ProgressionUnitType.ELF_ELF_MIZRAKCI -> UnitEntity.UnitType.SPEARMAN
-        ProgressionUnitType.ELF_BUYUCU -> UnitEntity.UnitType.HEAVY_WEAPON
-        ProgressionUnitType.ELF_SIFACI_ELF -> UnitEntity.UnitType.HEAVY_WEAPON
-        ProgressionUnitType.ELF_ELIT_MANCINIK -> UnitEntity.UnitType.HEAVY_WEAPON
-        ProgressionUnitType.ELF_CIFT_OK_SAPNAC_ISI -> UnitEntity.UnitType.ARCHER
-        ProgressionUnitType.ELF_ELF_PRENSI -> UnitEntity.UnitType.KNIGHT
-        ProgressionUnitType.ELF_ELF_PRENSESI -> UnitEntity.UnitType.KNIGHT
-        
-        // Mechanical Legion Units
-        ProgressionUnitType.MECH_BASIT_DROID -> UnitEntity.UnitType.SPEARMAN
-        ProgressionUnitType.MECH_LAZER_TARET -> UnitEntity.UnitType.ARCHER
-        ProgressionUnitType.MECH_MIZRAKCI -> UnitEntity.UnitType.SPEARMAN
-        ProgressionUnitType.MECH_KALKANLI -> UnitEntity.UnitType.SPEARMAN
-        ProgressionUnitType.MECH_ZIRHLI_DROID -> UnitEntity.UnitType.HEAVY_WEAPON
-        ProgressionUnitType.MECH_HIZLI_DRONE -> UnitEntity.UnitType.CAVALRY
-        ProgressionUnitType.MECH_TANK_DROID -> UnitEntity.UnitType.HEAVY_WEAPON
-        ProgressionUnitType.MECH_ROKETATAR_DROID -> UnitEntity.UnitType.HEAVY_WEAPON
-        ProgressionUnitType.MECH_MECHA_SAVASCI -> UnitEntity.UnitType.KNIGHT
-        ProgressionUnitType.MECH_PLAZMA_TOPU -> UnitEntity.UnitType.HEAVY_WEAPON
-        
-        else -> UnitEntity.UnitType.SPEARMAN // Default fallback
-    }
-}
+// Removed old convertToEngineUnitType function - now using UnitMapping

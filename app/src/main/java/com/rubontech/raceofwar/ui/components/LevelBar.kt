@@ -57,7 +57,7 @@ fun LevelBar(
     val borderWidth = (spacing * 0.2f).coerceAtLeast(1f)
     val barHeight = (spacing * 2f).coerceAtLeast(8f)
     
-    val xpNeeded = currentLevel * GameConfig.XP_NEEDED_PER_LEVEL
+    val xpNeeded = currentLevel * 100
     val progress = currentXP.toFloat() / xpNeeded.toFloat()
     val nextLevel = currentLevel + 1
     

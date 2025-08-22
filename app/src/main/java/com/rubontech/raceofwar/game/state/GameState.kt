@@ -10,6 +10,8 @@ import com.rubontech.raceofwar.game.entities.UnitEntity
 import com.rubontech.raceofwar.game.units.UnitProgression
 import com.rubontech.raceofwar.game.units.UnitType
 import com.rubontech.raceofwar.ui.screens.GameSettings
+import com.rubontech.raceofwar.ui.utils.UnitMapping
+import com.rubontech.raceofwar.ui.utils.UnitTier
 
 /**
  * Manages the current game state including level progression
@@ -20,11 +22,17 @@ class GameState(
 ) {
     
     private var gameStartTime: Long = System.currentTimeMillis()
-    private var _currentLevel: Int = UnitProgression.STARTING_LEVEL
+    private var _currentXP: Int = UnitProgression.STARTING_XP
     private var _availableUnits: List<UnitType> = emptyList()
     private var _spawnedUnits: MutableMap<UnitType, Int> = mutableMapOf()
     
-    val currentLevel: Int get() = _currentLevel
+    init {
+        // Initialize available units at start
+        _availableUnits = UnitProgression.getAvailableUnits(playerRace, _currentXP)
+        println("🎮 GameState initialized - Race: $playerRace, Initial XP: $_currentXP, Units: ${_availableUnits.size}")
+    }
+    
+    val currentXP: Int get() = _currentXP
     val availableUnits: List<UnitType> get() = _availableUnits
     val spawnedUnits: Map<UnitType, Int> get() = _spawnedUnits.toMap()
     
@@ -37,71 +45,102 @@ class GameState(
     }
     
     /**
-     * Update game state based on current time
+     * Update game state based on current time - XP system
      */
     fun update() {
         val gameTime = getGameTimeMinutes()
-        val newLevel = UnitProgression.getCurrentLevel(gameTime)
+        val newXP = UnitProgression.getCurrentXP(gameTime)
         
-        if (newLevel != _currentLevel) {
-            _currentLevel = newLevel
-            onLevelUp(newLevel)
+        // Always update available units even if XP didn't change
+        _availableUnits = UnitProgression.getAvailableUnits(playerRace, newXP)
+        
+        if (newXP != _currentXP) {
+            val oldXP = _currentXP
+            _currentXP = newXP
+            onXPGain(oldXP, newXP)
         }
         
-        _availableUnits = UnitProgression.getAvailableUnits(playerRace, _currentLevel)
+        // Debug every update
+        println("🔄 GameState Update - Time: ${String.format("%.1f", gameTime)}min, XP: $newXP, Units: ${_availableUnits.size}")
     }
     
     /**
-     * Called when player levels up
+     * Called when player gains XP
      */
-    private fun onLevelUp(newLevel: Int) {
-        // Here you can add level up effects, sounds, notifications etc.
-        println("Level Up! New level: $newLevel")
-        
-        // Get newly unlocked units
-        val previousUnits = UnitProgression.getAvailableUnits(playerRace, newLevel - 1)
-        val currentUnits = UnitProgression.getAvailableUnits(playerRace, newLevel)
-        val newUnits = currentUnits - previousUnits.toSet()
-        
-        if (newUnits.isNotEmpty()) {
-            println("New units unlocked: ${newUnits.map { it.displayName }}")
+    private fun onXPGain(oldXP: Int, newXP: Int) {
+        // Check if we crossed any tier thresholds
+        val oldTier = when {
+            oldXP < UnitProgression.MEDIUM_TIER_XP -> "Light"
+            oldXP < UnitProgression.HEAVY_TIER_XP -> "Medium"
+            else -> "Heavy"
         }
-    }
-    
-    /**
-     * Get next level unlock time
-     */
-    fun getNextLevelTime(): Double? {
-        return UnitProgression.getNextUnlockTime(playerRace, _currentLevel)
-    }
-    
-    /**
-     * Get time remaining until next level
-     */
-    fun getTimeToNextLevel(): Double? {
-        val nextLevelTime = getNextLevelTime() ?: return null
-        val currentTime = getGameTimeMinutes()
-        return (nextLevelTime - currentTime).coerceAtLeast(0.0)
-    }
-    
-    /**
-     * Check if a unit type is available at current level
-     */
-    fun isUnitAvailable(unitType: UnitType): Boolean {
-        return unitType in _availableUnits
-    }
-    
-    /**
-     * Get level for a specific unit type
-     */
-    fun getUnitUnlockLevel(unitType: UnitType): Int {
-        for (level in UnitProgression.STARTING_LEVEL..UnitProgression.MAX_LEVEL) {
-            val unitsAtLevel = UnitProgression.getAvailableUnits(playerRace, level)
-            if (unitType in unitsAtLevel) {
-                return level
+        
+        val newTier = when {
+            newXP < UnitProgression.MEDIUM_TIER_XP -> "Light"
+            newXP < UnitProgression.HEAVY_TIER_XP -> "Medium"
+            else -> "Heavy"
+        }
+        
+        if (oldTier != newTier) {
+            println("🎉 Tier Up! New tier: $newTier (XP: $newXP)")
+            
+            // Get newly unlocked units
+            val previousUnits = UnitProgression.getAvailableUnits(playerRace, oldXP)
+            val currentUnits = UnitProgression.getAvailableUnits(playerRace, newXP)
+            val newUnits = currentUnits - previousUnits.toSet()
+            
+            if (newUnits.isNotEmpty()) {
+                println("🔓 New units unlocked: ${newUnits.map { it.displayName }}")
             }
         }
-        return UnitProgression.MAX_LEVEL
+        
+        // Debug XP gain
+        println("💎 XP Update: $oldXP → $newXP (Time: ${String.format("%.1f", getGameTimeMinutes())}min)")
+        println("📋 Available units after XP update: ${_availableUnits.map { it.displayName }}")
+    }
+    
+    /**
+     * Get next XP threshold
+     */
+    fun getNextXPThreshold(): Int? {
+        return UnitProgression.getNextXPThreshold(_currentXP)
+    }
+    
+    /**
+     * Get XP remaining until next tier
+     */
+    fun getXPToNextTier(): Int? {
+        val nextThreshold = getNextXPThreshold() ?: return null
+        return (nextThreshold - _currentXP).coerceAtLeast(0)
+    }
+    
+    /**
+     * Get time remaining until next tier (in minutes)
+     */
+    fun getTimeToNextTier(): Double? {
+        val xpNeeded = getXPToNextTier() ?: return null
+        return xpNeeded.toDouble() / UnitProgression.XP_PER_MINUTE
+    }
+    
+    /**
+     * Check if a unit type is available with current XP
+     */
+    fun isUnitAvailable(unitType: UnitType): Boolean {
+        return UnitProgression.isUnitUnlocked(unitType, _currentXP)
+    }
+    
+    /**
+     * Get required XP for a specific unit type
+     */
+    fun getUnitUnlockXP(unitType: UnitType): Int {
+        return UnitMapping.getRequiredXP(unitType)
+    }
+    
+    /**
+     * Get unit tier for a specific unit type
+     */
+    fun getUnitTier(unitType: UnitType): UnitTier {
+        return UnitMapping.getUnitTier(unitType)
     }
     
     /**
@@ -146,8 +185,8 @@ class GameState(
      */
     fun reset() {
         gameStartTime = System.currentTimeMillis()
-        _currentLevel = UnitProgression.STARTING_LEVEL
-        _availableUnits = UnitProgression.getAvailableUnits(playerRace, _currentLevel)
+        _currentXP = UnitProgression.STARTING_XP
+        _availableUnits = UnitProgression.getAvailableUnits(playerRace, _currentXP)
         _spawnedUnits.clear()
     }
     
@@ -156,12 +195,12 @@ class GameState(
      */
     fun getProgressionInfo(): ProgressionInfo {
         return ProgressionInfo(
-            currentLevel = _currentLevel,
-            maxLevel = UnitProgression.MAX_LEVEL,
+            currentXP = _currentXP,
+            nextXPThreshold = getNextXPThreshold(),
             gameTimeMinutes = getGameTimeMinutes(),
-            timeToNextLevel = getTimeToNextLevel(),
+            timeToNextTier = getTimeToNextTier(),
             availableUnitCount = _availableUnits.size,
-            totalUnitCount = UnitProgression.getUnitCountAtLevel(playerRace, UnitProgression.MAX_LEVEL)
+            totalUnitCount = UnitProgression.getAllUnitsForRace(playerRace).size
         )
     }
 }
@@ -170,15 +209,24 @@ class GameState(
  * Data class for progression information
  */
 data class ProgressionInfo(
-    val currentLevel: Int,
-    val maxLevel: Int,
+    val currentXP: Int,
+    val nextXPThreshold: Int?,
     val gameTimeMinutes: Double,
-    val timeToNextLevel: Double?,
+    val timeToNextTier: Double?,
     val availableUnitCount: Int,
     val totalUnitCount: Int
 ) {
-    val progressPercentage: Float = currentLevel.toFloat() / maxLevel.toFloat()
+    val progressPercentage: Float = if (nextXPThreshold != null) {
+        currentXP.toFloat() / nextXPThreshold.toFloat()
+    } else 1.0f // All tiers unlocked
+    
     val formattedGameTime: String = String.format("%d:%02d", 
         gameTimeMinutes.toInt(), 
         ((gameTimeMinutes % 1) * 60).toInt())
+        
+    val currentTier: String = when {
+        currentXP < UnitProgression.MEDIUM_TIER_XP -> "Light"
+        currentXP < UnitProgression.HEAVY_TIER_XP -> "Medium" 
+        else -> "Heavy"
+    }
 }

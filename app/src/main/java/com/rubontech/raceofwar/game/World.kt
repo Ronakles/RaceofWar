@@ -292,30 +292,7 @@ class World(
         _xpFlow.value = currentXP
     }
     
-    // Level system methods
-    fun addXP(amount: Int) {
-        currentXP += amount
-        totalXP += amount
-        _xpFlow.value = currentXP
-        
-        println("⭐ XP Added: $amount | Current XP: $currentXP | Level: $currentLevel")
-        
-        // Check for level up
-        checkLevelUp()
-    }
-    
-    private fun checkLevelUp() {
-        val xpNeeded = currentLevel * GameConfig.XP_NEEDED_PER_LEVEL
-        if (currentXP >= xpNeeded && currentLevel < GameConfig.MAX_LEVEL) {
-            val oldLevel = currentLevel
-            currentLevel++
-            currentXP -= (currentLevel - 1) * GameConfig.XP_NEEDED_PER_LEVEL
-            _levelFlow.value = currentLevel
-            _xpFlow.value = currentXP
-            
-            println("🆙 LEVEL UP! $oldLevel → $currentLevel | Remaining XP: $currentXP")
-        }
-    }
+    // Old XP system removed - now using time-based XP in GameState
     
     fun isUnitUnlocked(unitType: UnitEntity.UnitType): Boolean {
         return when (unitType) {

@@ -76,6 +76,8 @@ class SpawnSystem(
     }
     
     fun spawnPlayerUnit(unitType: UnitEntity.UnitType, selectedRace: UnitEntity.Race = UnitEntity.Race.MECHANICAL_LEGION): Boolean {
+        println("🏭 SpawnSystem: Attempting to spawn $unitType for race $selectedRace")
+        
         val cost = when (unitType) {
             UnitEntity.UnitType.CAVALRY -> GameConfig.CAVALRY_COST
             UnitEntity.UnitType.SPEARMAN -> GameConfig.SPEARMAN_COST
@@ -85,18 +87,26 @@ class SpawnSystem(
             UnitEntity.UnitType.ELF_KNIGHT -> GameConfig.KNIGHT_COST // Same as regular knight
         }
         
+        println("💰 SpawnSystem: Cost check - Required: $cost, Available: ${world.gold}")
+        
         if (!world.canAfford(cost)) {
+            println("❌ SpawnSystem: Cannot afford unit (need $cost, have ${world.gold})")
             return false
         }
         
         world.spendGold(cost)
+        println("💸 SpawnSystem: Gold spent, remaining: ${world.gold}")
         
         // Always spawn at player base
         val spawnX = GameConfig.playerBaseX + GameConfig.BASE_WIDTH + 10f
         val spawnY = GameConfig.laneY - GameConfig.UNIT_HEIGHT
         
+        println("📍 SpawnSystem: Spawn position - X: $spawnX, Y: $spawnY")
+        
         // Check if spawn position is clear
         if (isSpawnPositionClear(spawnX, spawnY, UnitEntity.Team.PLAYER)) {
+            println("✅ SpawnSystem: Spawn position is clear")
+            
             val unit = when (unitType) {
                 UnitEntity.UnitType.CAVALRY -> CavalryUnit(spawnX, spawnY, UnitEntity.Team.PLAYER, selectedRace)
                 UnitEntity.UnitType.SPEARMAN -> SpearmanUnit(spawnX, spawnY, UnitEntity.Team.PLAYER, selectedRace)
@@ -105,8 +115,12 @@ class SpawnSystem(
                 UnitEntity.UnitType.HEAVY_WEAPON -> HeavyWeaponUnit(spawnX, spawnY, UnitEntity.Team.PLAYER, selectedRace)
                 UnitEntity.UnitType.ELF_KNIGHT -> ElfKnightUnit(spawnX, spawnY, UnitEntity.Team.PLAYER, selectedRace, context)
             }
+            
             world.addPlayerUnit(unit)
+            println("🎉 SpawnSystem: Unit successfully created and added to world")
             return true
+        } else {
+            println("❌ SpawnSystem: Spawn position blocked")
         }
         
         return false

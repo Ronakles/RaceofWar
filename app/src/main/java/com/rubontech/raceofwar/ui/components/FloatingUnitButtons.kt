@@ -42,6 +42,7 @@ import com.rubontech.raceofwar.game.state.GameState
 import com.rubontech.raceofwar.game.GameConfig
 import com.rubontech.raceofwar.game.units.UnitType as ProgressionUnitType
 import com.rubontech.raceofwar.ui.components.SpawnCooldownManager
+import com.rubontech.raceofwar.ui.utils.UnitMapping
 
 /**
  * Minimal floating circular buttons that don't block the game view
@@ -134,12 +135,12 @@ private fun FloatingUnitButton(
     var bitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     
     // Calculate real unit cost and affordability
-    val unitCost = getUnitCost(unitType)
+    val unitCost = UnitMapping.getUnitCost(unitType)
     val currentGold = realGold ?: 0
     val canAfford = currentGold >= unitCost
     
     // Check cooldown
-    val engineUnitType = convertToEngineUnitType(unitType)
+    val engineUnitType = UnitMapping.convertToEngineUnitType(unitType)
     val isOnCooldown = cooldownManager.isOnCooldown(engineUnitType)
     val canSpawn = canAfford && !isOnCooldown
     
@@ -155,14 +156,20 @@ private fun FloatingUnitButton(
     LaunchedEffect(isOnCooldown, queueCount) {
         if (!isOnCooldown && queueCount > 0) {
             // Cooldown ended and we have units in queue, spawn one
+            println("🚀 Auto-spawning: ${unitType.displayName} (Queue before: $queueCount)")
+            
+            // Spawn the unit first
+            onClick() // This actually spawns the unit
+            
+            // Then decrease queue count
             queueCount--
-            println("🚀 Auto-spawning: ${unitType.displayName} (Remaining in queue: $queueCount)")
+            println("✅ Unit spawned: ${unitType.displayName} (Remaining in queue: $queueCount)")
             
             // Start new cooldown if more units in queue
             if (queueCount > 0) {
-                val engineUnitType = convertToEngineUnitType(unitType)
+                val engineUnitType = UnitMapping.convertToEngineUnitType(unitType)
                 cooldownManager.startCooldown(engineUnitType)
-                onClick() // Spawn the unit
+                println("⏰ Starting cooldown for next unit in queue")
             }
         }
     }
@@ -207,14 +214,20 @@ private fun FloatingUnitButton(
                 .clickable(enabled = isAvailable && canAfford) {
                 if (isAvailable && canAfford) {
                     isPressed = true
-                    // Increase queue count (user click)
-                    queueCount++
-                    println("➕ Added to queue: ${unitType.displayName} (Queue count: $queueCount)")
                     
-                    // Start cooldown and auto-spawn
-                    val engineUnitType = convertToEngineUnitType(unitType)
-                    cooldownManager.startCooldown(engineUnitType)
-                    onClick() // This will spawn the unit
+                    if (!isOnCooldown) {
+                        // No cooldown - spawn immediately
+                        println("🚀 Immediate spawn: ${unitType.displayName}")
+                        onClick() // Spawn immediately
+                        
+                        // Start cooldown for next spawn
+                        val engineUnitType = UnitMapping.convertToEngineUnitType(unitType)
+                        cooldownManager.startCooldown(engineUnitType)
+                    } else {
+                        // On cooldown - add to queue
+                        queueCount++
+                        println("➕ Added to queue: ${unitType.displayName} (Queue count: $queueCount)")
+                    }
                 }
             },
             shape = CircleShape,
@@ -251,7 +264,7 @@ private fun FloatingUnitButton(
                 } else {
                     // Fallback to emoji if image fails to load
                     Text(
-                        text = getUnitEmoji(unitType),
+                        text = UnitMapping.getUnitEmoji(unitType),
                         fontSize = 16.sp,
                         color = if (isAvailable && canAfford) Color.White else Color.Gray,
                         textAlign = TextAlign.Center
@@ -505,29 +518,9 @@ private fun getAssetName(unitType: com.rubontech.raceofwar.game.units.UnitType, 
     }
 }
 
-private fun getUnitCost(unitType: com.rubontech.raceofwar.game.units.UnitType): Int {
-    val displayName = unitType.displayName.lowercase()
-    return when {
-        displayName.contains("spear") || displayName.contains("mızrak") -> GameConfig.SPEARMAN_COST
-        displayName.contains("archer") || displayName.contains("okç") -> GameConfig.ARCHER_COST
-        displayName.contains("knight") || displayName.contains("şövalye") -> GameConfig.KNIGHT_COST
-        displayName.contains("cavalry") || displayName.contains("atlı") -> GameConfig.CAVALRY_COST
-        displayName.contains("heavy") || displayName.contains("ağır") -> GameConfig.HEAVY_WEAPON_COST
-        else -> GameConfig.SPEARMAN_COST // Default fallback
-    }
-}
+// Removed old helper function - now using UnitMapping.getUnitCost()
 
-private fun getUnitEmoji(unitType: com.rubontech.raceofwar.game.units.UnitType): String {
-    val displayName = unitType.displayName.lowercase()
-    return when {
-        displayName.contains("spear") || displayName.contains("mızrak") -> "🗡️"
-        displayName.contains("archer") || displayName.contains("okç") -> "🏹"
-        displayName.contains("knight") || displayName.contains("şövalye") -> "⚔️"
-        displayName.contains("cavalry") || displayName.contains("atlı") -> "🐎"
-        displayName.contains("heavy") || displayName.contains("ağır") -> "🔨"
-        else -> "⚡"
-    }
-}
+// Removed old helper function - now using UnitMapping.getUnitEmoji()
 
 /**
  * Difficulty progress indicator showing current difficulty level and progress

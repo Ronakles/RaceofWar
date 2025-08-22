@@ -38,20 +38,25 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.material3.Icon
 import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import com.rubontech.raceofwar.game.units.UnitProgression
+import com.rubontech.raceofwar.game.units.UnitType as ProgressionUnitType
+import com.rubontech.raceofwar.ui.utils.UnitMapping
+import com.rubontech.raceofwar.ui.utils.UnitTier
+import com.rubontech.raceofwar.game.state.GameState
 
 /**
  * Professional Age of Wars / Stick Wars style spawn buttons
  */
 @Composable
 fun ProfessionalSpawnButtons(
-    gold: Int,
-    currentLevel: Int,
+    gameState: GameState,
     selectedRace: UnitEntity.Race = UnitEntity.Race.MECHANICAL_LEGION,
-    isUnitUnlocked: (UnitEntity.UnitType) -> Boolean,
-    getUnlockLevel: (UnitEntity.UnitType) -> Int,
-    onSpawnUnit: (UnitEntity.UnitType) -> Unit,
+    onSpawnUnit: (ProgressionUnitType) -> Unit,
     onRaceChanged: (UnitEntity.Race) -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    realGold: Int? = null
 ) {
     val cooldownManager = rememberSpawnCooldownManager()
     val configuration = LocalConfiguration.current
@@ -63,57 +68,63 @@ fun ProfessionalSpawnButtons(
     val buttonHeight = (screenHeight * 0.12f).dp // Professional height ratio
     val spacing = (screenWidth * 0.01f).dp
     
-    // Define unit order (most basic to most advanced)
-    val unitOrder = listOf(
-        UnitEntity.UnitType.SPEARMAN,
-        UnitEntity.UnitType.ARCHER,
-        UnitEntity.UnitType.HEAVY_WEAPON,
-        UnitEntity.UnitType.CAVALRY,
-        UnitEntity.UnitType.KNIGHT
-    )
+    // Get available units from progression system
+    val availableUnits = gameState.availableUnits
+    val currentGold = realGold ?: 0
     
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(spacing),
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp)
-    ) {
-        unitOrder.forEach { unitType ->
-            val cost = when (unitType) {
-                UnitEntity.UnitType.CAVALRY -> GameConfig.CAVALRY_COST
-                UnitEntity.UnitType.SPEARMAN -> GameConfig.SPEARMAN_COST
-                UnitEntity.UnitType.ARCHER -> GameConfig.ARCHER_COST
-                UnitEntity.UnitType.KNIGHT -> GameConfig.KNIGHT_COST
-                UnitEntity.UnitType.HEAVY_WEAPON -> GameConfig.HEAVY_WEAPON_COST
-                UnitEntity.UnitType.ELF_KNIGHT -> GameConfig.KNIGHT_COST
+    if (availableUnits.isNotEmpty()) {
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(spacing),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+            modifier = modifier.fillMaxWidth()
+        ) {
+            items(availableUnits) { progressionUnitType ->
+                val cost = UnitMapping.getUnitCost(progressionUnitType)
+                val engineUnitType = UnitMapping.convertToEngineUnitType(progressionUnitType)
+                val isAvailable = gameState.isUnitAvailable(progressionUnitType)
+                val unlockXP = gameState.getUnitUnlockXP(progressionUnitType)
+                val unitTier = gameState.getUnitTier(progressionUnitType)
+                val canAfford = currentGold >= cost
+                val isOnCooldown = cooldownManager.isOnCooldown(engineUnitType)
+                val isEnabled = isAvailable && canAfford && !isOnCooldown
+                
+                ProfessionalUnitButton(
+                    progressionUnitType = progressionUnitType,
+                    selectedRace = selectedRace,
+                    cost = cost,
+                    isUnlocked = isAvailable,
+                    unlockXP = unlockXP,
+                    unitTier = unitTier,
+                    currentXP = gameState.currentXP,
+                    canAfford = canAfford,
+                    isEnabled = isEnabled,
+                    cooldownManager = cooldownManager,
+                    onClick = { 
+                        if (isEnabled) {
+                            cooldownManager.startCooldown(engineUnitType)
+                            onSpawnUnit(progressionUnitType)
+                        }
+                    },
+                    modifier = Modifier
+                        .width(buttonWidth)
+                        .height(buttonHeight)
+                )
             }
-            
-            val isUnlocked = isUnitUnlocked(unitType)
-            val unlockLevel = getUnlockLevel(unitType)
-            val canAfford = gold >= cost
-            val isOnCooldown = cooldownManager.isOnCooldown(unitType)
-            val isEnabled = isUnlocked && canAfford && !isOnCooldown
-            
-            ProfessionalUnitButton(
-                unitType = unitType,
-                selectedRace = selectedRace,
-                cost = cost,
-                isUnlocked = isUnlocked,
-                unlockLevel = unlockLevel,
-                canAfford = canAfford,
-                isEnabled = isEnabled,
-                cooldownManager = cooldownManager,
-                onClick = { 
-                    if (isEnabled) {
-                        cooldownManager.startCooldown(unitType)
-                        onSpawnUnit(unitType)
-                    }
-                },
-                modifier = Modifier
-                    .width(buttonWidth)
-                    .height(buttonHeight)
-                    .weight(1f)
+        }
+    } else {
+        // Show message when no units available
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .height(buttonHeight)
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "No units available",
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
             )
         }
     }
@@ -121,11 +132,13 @@ fun ProfessionalSpawnButtons(
 
 @Composable
 private fun ProfessionalUnitButton(
-    unitType: UnitEntity.UnitType,
+    progressionUnitType: ProgressionUnitType,
     selectedRace: UnitEntity.Race,
     cost: Int,
     isUnlocked: Boolean,
-    unlockLevel: Int,
+    unlockXP: Int,
+    unitTier: UnitTier,
+    currentXP: Int,
     canAfford: Boolean,
     isEnabled: Boolean,
     cooldownManager: SpawnCooldownManager,
@@ -150,17 +163,9 @@ private fun ProfessionalUnitButton(
         label = "glow_alpha"
     )
     
-    // Load unit asset
-    val assetName = getAssetName(unitType, selectedRace)
-    LaunchedEffect(assetName) {
-        try {
-            val inputStream = context.assets.open(assetName)
-            bitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream.close()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
+    // Use placeholder emoji instead of assets for now
+    val unitEmoji = UnitMapping.getUnitEmoji(progressionUnitType)
+    val unitDescription = UnitMapping.getUnitDescription(progressionUnitType)
     
     Box(
         modifier = modifier
@@ -250,29 +255,13 @@ private fun ProfessionalUnitButton(
                     .clip(RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                if (isUnlocked && bitmap != null) {
-                    Image(
-                        bitmap = bitmap!!.asImageBitmap(),
-                        contentDescription = "${unitType.name} icon",
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(4.dp),
-                        contentScale = ContentScale.Fit,
-                        colorFilter = if (!canAfford) {
-                            ColorFilter.colorMatrix(
-                                ColorMatrix().apply {
-                                    setToSaturation(0f)
-                                    set(4, 4, 0.5f) // Reduce brightness
-                                }
-                            )
-                        } else null
-                    )
-                } else if (isUnlocked) {
-                    // Fallback icon
+                if (isUnlocked) {
+                    // Use placeholder emoji
                     Text(
-                        text = getUnitEmoji(unitType),
+                        text = unitEmoji,
                         fontSize = 24.sp,
-                        color = if (canAfford) Color.White else Color.Gray
+                        color = if (canAfford) Color.White else Color.Gray,
+                        modifier = Modifier.padding(4.dp)
                     )
                 } else {
                     // Locked state
@@ -295,7 +284,13 @@ private fun ProfessionalUnitButton(
                                 modifier = Modifier.size(20.dp)
                             )
                             Text(
-                                text = "Lv.$unlockLevel",
+                                text = "${unitTier.displayName}",
+                                fontSize = 8.sp,
+                                color = Color.Gray,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "${unlockXP}XP",
                                 fontSize = 10.sp,
                                 color = Color.Gray,
                                 fontWeight = FontWeight.Bold
@@ -334,30 +329,74 @@ private fun ProfessionalUnitButton(
                         )
                     }
                 } else {
-                    Text(
-                        text = "LEVEL $unlockLevel",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Gray,
-                        textAlign = TextAlign.Center
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = unitTier.displayName.uppercase(),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Gray,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            text = "${unlockXP} XP",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Gray,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
         }
         
         // Cooldown overlay
         SpawnCooldownOverlay(
-            unitType = unitType,
+            unitType = UnitMapping.convertToEngineUnitType(progressionUnitType),
             cooldownManager = cooldownManager,
             modifier = Modifier.fillMaxSize()
         )
         
-        // Unit tooltip
-        UnitTooltip(
-            unitType = unitType,
-            isVisible = showTooltip,
-            onDismiss = { showTooltip = false }
-        )
+        // Unit tooltip - show description
+        if (showTooltip) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.Black.copy(alpha = 0.9f), RoundedCornerShape(4.dp))
+                    .padding(8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = progressionUnitType.displayName,
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "${unitTier.displayName} Tier • ${unlockXP} XP Required",
+                        color = Color.Yellow,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        text = unitDescription,
+                        color = Color.Gray,
+                        fontSize = 10.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+            
+            LaunchedEffect(Unit) {
+                delay(2000)
+                showTooltip = false
+            }
+        }
     }
 }
 
@@ -382,42 +421,4 @@ private fun SpawnEffectOverlay() {
     }
 }
 
-private fun getAssetName(unitType: UnitEntity.UnitType, race: UnitEntity.Race): String {
-    return when (race) {
-        UnitEntity.Race.NATURE_TRIBE -> when (unitType) {
-            UnitEntity.UnitType.HEAVY_WEAPON -> "heavyweapnelfbirimi.png"
-            UnitEntity.UnitType.SPEARMAN -> "elfsperamanbirimi.png"
-            UnitEntity.UnitType.ARCHER -> "archerbirimielf.png"
-            UnitEntity.UnitType.KNIGHT -> "knightelfbirimi.png"
-            UnitEntity.UnitType.CAVALRY -> "cavarlyelifbirimi.png"
-            UnitEntity.UnitType.ELF_KNIGHT -> "knightelfbirimi.png"
-        }
-        UnitEntity.Race.MECHANICAL_LEGION -> when (unitType) {
-            UnitEntity.UnitType.HEAVY_WEAPON -> "mekaniklejyonheavyweaponbirimi.png"
-            UnitEntity.UnitType.SPEARMAN -> "mekaniklejyonmızrakçıbirimi.png"
-            UnitEntity.UnitType.ARCHER -> "mekaniklejyonuzakçıbirimi.png"
-            UnitEntity.UnitType.KNIGHT -> "mekaniklejyonşövalyebirimi.png"
-            UnitEntity.UnitType.CAVALRY -> "mekaniklejyonatlıbirimi.png"
-            UnitEntity.UnitType.ELF_KNIGHT -> "mekaniklejyonşövalyebirimi.png"
-        }
-        else -> when (unitType) {
-            UnitEntity.UnitType.HEAVY_WEAPON -> "mekaniklejyonheavyweaponbirimi.png"
-            UnitEntity.UnitType.SPEARMAN -> "mekaniklejyonmızrakçıbirimi.png"
-            UnitEntity.UnitType.ARCHER -> "mekaniklejyonuzakçıbirimi.png"
-            UnitEntity.UnitType.KNIGHT -> "mekaniklejyonşövalyebirimi.png"
-            UnitEntity.UnitType.CAVALRY -> "mekaniklejyonatlıbirimi.png"
-            UnitEntity.UnitType.ELF_KNIGHT -> "mekaniklejyonşövalyebirimi.png"
-        }
-    }
-}
-
-private fun getUnitEmoji(unitType: UnitEntity.UnitType): String {
-    return when (unitType) {
-        UnitEntity.UnitType.HEAVY_WEAPON -> "🔨"
-        UnitEntity.UnitType.SPEARMAN -> "🗡️"
-        UnitEntity.UnitType.ARCHER -> "🏹"
-        UnitEntity.UnitType.KNIGHT -> "⚔️"
-        UnitEntity.UnitType.CAVALRY -> "🐎"
-        UnitEntity.UnitType.ELF_KNIGHT -> "🛡️"
-    }
-}
+// Removed old asset and emoji functions - now using UnitMapping

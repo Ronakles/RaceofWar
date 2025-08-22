@@ -7,150 +7,184 @@
 package com.rubontech.raceofwar.game.units
 
 import com.rubontech.raceofwar.game.entities.UnitEntity
+import com.rubontech.raceofwar.ui.utils.UnitMapping
 
 /**
- * Unit progression system based on game time
- * Players start at level 1 and progress to level 10
+ * Unit progression system based on XP
+ * Players gain XP over time and unlock units at specific XP thresholds
  */
 object UnitProgression {
     
-    const val MAX_LEVEL = 10
-    const val STARTING_LEVEL = 1
+    const val STARTING_XP = 0
+    const val XP_PER_MINUTE = 200 // XP gained every minute (increased for testing)
+    
+    // XP thresholds for unit tiers
+    const val LIGHT_TIER_XP = 0      // Available immediately
+    const val MEDIUM_TIER_XP = 100   // Unlocked at 100 XP (2 minutes)
+    const val HEAVY_TIER_XP = 300    // Unlocked at 300 XP (6 minutes)
     
     /**
-     * Time-based progression for each level (in minutes)
+     * Calculate current XP based on game time
      */
-    private val progressionTimes = mapOf(
-        1 to 0.0,    // 0:00 - Starting units
-        2 to 1.0,    // 1:00 
-        3 to 2.0,    // 2:00
-        4 to 3.0,    // 3:00
-        5 to 4.0,    // 4:00
-        6 to 5.0,    // 5:00
-        7 to 6.5,    // 6:30
-        8 to 9.0,    // 9:00
-        9 to 10.0,   // 10:00
-        10 to 10.0   // 10:00 (max level)
-    )
-    
-    /**
-     * Get current level based on game time
-     */
-    fun getCurrentLevel(gameTimeMinutes: Double): Int {
-        var currentLevel = STARTING_LEVEL
-        for ((level, timeRequired) in progressionTimes) {
-            if (gameTimeMinutes >= timeRequired) {
-                currentLevel = level
-            } else {
-                break
-            }
-        }
-        return currentLevel.coerceAtMost(MAX_LEVEL)
+    fun getCurrentXP(gameTimeMinutes: Double): Int {
+        return (gameTimeMinutes * XP_PER_MINUTE).toInt()
     }
     
     /**
-     * Get available units for a race at specific level
+     * Get available units for a race based on current XP
      */
-    fun getAvailableUnits(race: UnitEntity.Race, level: Int): List<UnitType> {
+    fun getAvailableUnits(race: UnitEntity.Race, currentXP: Int): List<UnitType> {
         return when (race) {
-            UnitEntity.Race.HUMAN_EMPIRE -> getHumanUnits(level)
-            UnitEntity.Race.DARK_CULT -> getDarkCultistUnits(level)
-            UnitEntity.Race.NATURE_TRIBE -> getElvenUnits(level)
-            UnitEntity.Race.MECHANICAL_LEGION -> getMechanicalUnits(level)
+            UnitEntity.Race.HUMAN_EMPIRE -> getHumanUnits(currentXP)
+            UnitEntity.Race.DARK_CULT -> getDarkCultistUnits(currentXP)
+            UnitEntity.Race.NATURE_TRIBE -> getElvenUnits(currentXP)
+            UnitEntity.Race.MECHANICAL_LEGION -> getMechanicalUnits(currentXP)
         }
     }
     
-    private fun getHumanUnits(level: Int): List<UnitType> {
+    /**
+     * Check if a specific unit is unlocked with current XP
+     */
+    fun isUnitUnlocked(unitType: UnitType, currentXP: Int): Boolean {
+        val requiredXP = UnitMapping.getRequiredXP(unitType)
+        return currentXP >= requiredXP
+    }
+    
+    private fun getHumanUnits(currentXP: Int): List<UnitType> {
         val units = mutableListOf<UnitType>()
         
-        if (level >= 1) {
+        // Light units (0 XP)
+        if (currentXP >= LIGHT_TIER_XP) {
             units.add(UnitType.HUMAN_KILICU) // Kılıçu
-            units.add(UnitType.HUMAN_OKCU) // Okçu - TEST: Level 1'de de açık
+            units.add(UnitType.HUMAN_OKCU) // Okçu
         }
-        if (level >= 2) units.add(UnitType.HUMAN_ZIRHLI_PIYADE) // Zırhlı Piyade
-        if (level >= 3) units.add(UnitType.HUMAN_ATLI) // Atlı
-        if (level >= 4) units.add(UnitType.HUMAN_MIZRAKCI) // Mızrakçı
-        if (level >= 5) units.add(UnitType.HUMAN_SIFACI) // Şifacı
-        if (level >= 6) units.add(UnitType.HUMAN_MANCINIK) // Mancınık
-        if (level >= 7) units.add(UnitType.HUMAN_CIFT_OK_ATAN_OKCU) // Çift Ok Atan Okçu
-        if (level >= 8) units.add(UnitType.HUMAN_KOMUTAN) // Komutan
-        if (level >= 9) units.add(UnitType.HUMAN_LIDER) // Lider
+        
+        // Medium units (100 XP)
+        if (currentXP >= MEDIUM_TIER_XP) {
+            units.add(UnitType.HUMAN_ZIRHLI_PIYADE) // Zırhlı Piyade
+            units.add(UnitType.HUMAN_ATLI) // Atlı
+            units.add(UnitType.HUMAN_MIZRAKCI) // Mızrakçı
+            units.add(UnitType.HUMAN_SIFACI) // Şifacı
+        }
+        
+        // Heavy units (300 XP)
+        if (currentXP >= HEAVY_TIER_XP) {
+            units.add(UnitType.HUMAN_MANCINIK) // Mancınık
+            units.add(UnitType.HUMAN_CIFT_OK_ATAN_OKCU) // Çift Ok Atan Okçu
+            units.add(UnitType.HUMAN_KOMUTAN) // Komutan
+            units.add(UnitType.HUMAN_LIDER) // Lider
+        }
         
         return units
     }
     
-    private fun getDarkCultistUnits(level: Int): List<UnitType> {
+    private fun getDarkCultistUnits(currentXP: Int): List<UnitType> {
         val units = mutableListOf<UnitType>()
         
-        if (level >= 1) {
+        // Light units (0 XP)
+        if (currentXP >= LIGHT_TIER_XP) {
             units.add(UnitType.DARK_GOLGE_DRUID) // Gölge Druid
-            units.add(UnitType.DARK_CADI) // Cadı - TEST: Level 1'de de açık
+            units.add(UnitType.DARK_CADI) // Cadı
         }
-        if (level >= 2) units.add(UnitType.DARK_MIZRAKCI) // Mızrakçı
-        if (level >= 3) units.add(UnitType.DARK_ATLI) // Atlı
-        if (level >= 4) units.add(UnitType.DARK_ATES_CUCESI) // Ateş Cücesi
-        if (level >= 5) units.add(UnitType.DARK_KARANLIK_SOVALYE) // Karanlık Şövalye
-        if (level >= 6) units.add(UnitType.DARK_KUTSA_SAPAN) // Kutsa Sapan
-        if (level >= 7) units.add(UnitType.DARK_SEYTAN_SAPAN) // Şeytan Sapan
-        if (level >= 8) units.add(UnitType.DARK_CIFT_TIRMIK_SAPAN) // Çift Tırmık Sapan
-        if (level >= 9) units.add(UnitType.DARK_SAPAN_KARAM) // Sapan Karam
+        
+        // Medium units (100 XP)
+        if (currentXP >= MEDIUM_TIER_XP) {
+            units.add(UnitType.DARK_MIZRAKCI) // Mızrakçı
+            units.add(UnitType.DARK_ATLI) // Atlı
+            units.add(UnitType.DARK_ATES_CUCESI) // Ateş Cücesi
+            units.add(UnitType.DARK_KARANLIK_SOVALYE) // Karanlık Şövalye
+        }
+        
+        // Heavy units (300 XP)
+        if (currentXP >= HEAVY_TIER_XP) {
+            units.add(UnitType.DARK_KUTSA_SAPAN) // Kutsa Sapan
+            units.add(UnitType.DARK_SEYTAN_SAPAN) // Şeytan Sapan
+            units.add(UnitType.DARK_CIFT_TIRMIK_SAPAN) // Çift Tırmık Sapan
+            units.add(UnitType.DARK_SAPAN_KARAM) // Sapan Karam
+        }
         
         return units
     }
     
-    private fun getElvenUnits(level: Int): List<UnitType> {
+    private fun getElvenUnits(currentXP: Int): List<UnitType> {
         val units = mutableListOf<UnitType>()
         
-        if (level >= 1) {
+        // Light units (0 XP)
+        if (currentXP >= LIGHT_TIER_XP) {
             units.add(UnitType.ELF_HAFIF_ELF_ASKER) // Hafif Elf Asker
-            units.add(UnitType.ELF_ELF_OKCUSU) // Elf Okçusu - TEST: Level 1'de de açık
+            units.add(UnitType.ELF_ELF_OKCUSU) // Elf Okçusu
         }
-        if (level >= 2) units.add(UnitType.ELF_ELF_ATLI) // Elf Atlısı
-        if (level >= 3) units.add(UnitType.ELF_ELF_MIZRAKCI) // Elf Mızrakçı
-        if (level >= 4) units.add(UnitType.ELF_BUYUCU) // Büyücü
-        if (level >= 5) units.add(UnitType.ELF_SIFACI_ELF) // Şifacı Elf
-        if (level >= 6) units.add(UnitType.ELF_ELIT_MANCINIK) // Elit Mancınık
-        if (level >= 7) units.add(UnitType.ELF_CIFT_OK_SAPNAC_ISI) // Çift Ok Sapnaç ısı
-        if (level >= 8) units.add(UnitType.ELF_ELF_PRENSI) // Elf Prensi
-        if (level >= 9) units.add(UnitType.ELF_ELF_PRENSESI) // Elf Prensesi
+        
+        // Medium units (100 XP)
+        if (currentXP >= MEDIUM_TIER_XP) {
+            units.add(UnitType.ELF_ELF_ATLI) // Elf Atlısı
+            units.add(UnitType.ELF_ELF_MIZRAKCI) // Elf Mızrakçı
+            units.add(UnitType.ELF_BUYUCU) // Büyücü
+            units.add(UnitType.ELF_SIFACI_ELF) // Şifacı Elf
+        }
+        
+        // Heavy units (300 XP)
+        if (currentXP >= HEAVY_TIER_XP) {
+            units.add(UnitType.ELF_ELIT_MANCINIK) // Elit Mancınık
+            units.add(UnitType.ELF_CIFT_OK_SAPNAC_ISI) // Çift Ok Sapnaç ısı
+            units.add(UnitType.ELF_ELF_PRENSI) // Elf Prensi
+            units.add(UnitType.ELF_ELF_PRENSESI) // Elf Prensesi
+        }
         
         return units
     }
     
-    private fun getMechanicalUnits(level: Int): List<UnitType> {
+    private fun getMechanicalUnits(currentXP: Int): List<UnitType> {
         val units = mutableListOf<UnitType>()
         
-        if (level >= 1) {
+        // Light units (0 XP)
+        if (currentXP >= LIGHT_TIER_XP) {
             units.add(UnitType.MECH_BASIT_DROID) // Basit Droid
-            units.add(UnitType.MECH_LAZER_TARET) // Lazer Taret - TEST: Level 1'de de açık
+            units.add(UnitType.MECH_LAZER_TARET) // Lazer Taret
         }
-        if (level >= 2) units.add(UnitType.MECH_MIZRAKCI) // Mızrakçı
-        if (level >= 3) units.add(UnitType.MECH_KALKANLI) // Kalkanlı
-        if (level >= 4) units.add(UnitType.MECH_ZIRHLI_DROID) // Zırhlı Droid
-        if (level >= 5) units.add(UnitType.MECH_HIZLI_DRONE) // Hızlı Drone
-        if (level >= 6) units.add(UnitType.MECH_TANK_DROID) // Tank Droid
-        if (level >= 7) units.add(UnitType.MECH_ROKETATAR_DROID) // Roketatar Droid
-        if (level >= 8) units.add(UnitType.MECH_MECHA_SAVASCI) // Mecha Savaşçı
-        if (level >= 9) units.add(UnitType.MECH_PLAZMA_TOPU) // Plazma Topu
+        
+        // Medium units (100 XP)
+        if (currentXP >= MEDIUM_TIER_XP) {
+            units.add(UnitType.MECH_MIZRAKCI) // Mızrakçı
+            units.add(UnitType.MECH_KALKANLI) // Kalkanlı
+            units.add(UnitType.MECH_ZIRHLI_DROID) // Zırhlı Droid
+            units.add(UnitType.MECH_HIZLI_DRONE) // Hızlı Drone
+        }
+        
+        // Heavy units (300 XP)
+        if (currentXP >= HEAVY_TIER_XP) {
+            units.add(UnitType.MECH_TANK_DROID) // Tank Droid
+            units.add(UnitType.MECH_ROKETATAR_DROID) // Roketatar Droid
+            units.add(UnitType.MECH_MECHA_SAVASCI) // Mecha Savaşçı
+            units.add(UnitType.MECH_PLAZMA_TOPU) // Plazma Topu
+        }
         
         return units
     }
     
     /**
-     * Get next unlock time for a race
+     * Get next XP threshold for unlocking more units
      */
-    fun getNextUnlockTime(race: UnitEntity.Race, currentLevel: Int): Double? {
-        if (currentLevel >= MAX_LEVEL) return null
-        
-        val nextLevel = currentLevel + 1
-        return progressionTimes[nextLevel]
+    fun getNextXPThreshold(currentXP: Int): Int? {
+        return when {
+            currentXP < MEDIUM_TIER_XP -> MEDIUM_TIER_XP
+            currentXP < HEAVY_TIER_XP -> HEAVY_TIER_XP
+            else -> null // All units unlocked
+        }
     }
     
     /**
-     * Get unit count at specific level for a race
+     * Get unit count at specific XP for a race
      */
-    fun getUnitCountAtLevel(race: UnitEntity.Race, level: Int): Int {
-        return getAvailableUnits(race, level).size
+    fun getUnitCountAtXP(race: UnitEntity.Race, currentXP: Int): Int {
+        return getAvailableUnits(race, currentXP).size
+    }
+    
+    /**
+     * Get all units for a race (for max count)
+     */
+    fun getAllUnitsForRace(race: UnitEntity.Race): List<UnitType> {
+        return getAvailableUnits(race, HEAVY_TIER_XP) // Return all units
     }
 }
 

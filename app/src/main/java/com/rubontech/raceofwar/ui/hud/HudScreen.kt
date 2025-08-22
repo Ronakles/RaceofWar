@@ -39,7 +39,8 @@ import com.rubontech.raceofwar.game.World
 import com.rubontech.raceofwar.game.entities.UnitEntity
 import com.rubontech.raceofwar.ui.components.FpsCounter
 import com.rubontech.raceofwar.ui.components.GoldBar
-import com.rubontech.raceofwar.ui.components.LevelBar
+import com.rubontech.raceofwar.ui.components.XPBar
+import com.rubontech.raceofwar.ui.components.GameTimeDisplay
 import com.rubontech.raceofwar.ui.components.RaceInfo
 import com.rubontech.raceofwar.ui.components.RaceButtons
 import com.rubontech.raceofwar.ui.components.SpawnButtons
@@ -116,40 +117,34 @@ fun HudScreen() {
                     modifier = Modifier.fillMaxSize()
                 )
                 
-                // Top-left resources (Gold, Mana)
+                // Top-left resources (Gold, XP)
                 Column(
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(spacing.dp),
-                    verticalArrangement = Arrangement.spacedBy(spacing.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    // Gold and Mana display
+                    // Gold display
                     GoldBar(gold = gold)
+                    
+                    // XP bar below gold (placeholder values for HudScreen)
+                    XPBar(
+                        currentXP = currentXP,
+                        nextXPThreshold = if (currentXP < 100) 100 else if (currentXP < 300) 300 else null,
+                        currentTier = when {
+                            currentXP < 100 -> "Light"
+                            currentXP < 300 -> "Medium"
+                            else -> "Heavy"
+                        }
+                    )
                     
                     // FPS Counter
                     FpsCounter(fps = fps)
-                    
-                    // Debug XP Test Button - Make it bigger and more visible
-                    Button(
-                        onClick = {
-                            val battleScene = gameSurface?.getSceneManager()?.getCurrentScene() as? BattleScene
-                            battleScene?.let { scene ->
-                                val world = scene.getWorld()
-                                world.addXP(10) // Test XP
-                                println("🧪 Test XP Added!")
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
-                        modifier = Modifier.size(80.dp, 40.dp)
-                    ) {
-                        Text("TEST\nXP", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
-                    }
                 }
                 
-                // Top-center XP display
-                LevelBar(
-                    currentLevel = currentLevel,
-                    currentXP = currentXP,
+                // Top-center: Game time display
+                GameTimeDisplay(
+                    gameTimeMinutes = (System.currentTimeMillis() - 0L) / 60000.0, // Placeholder calculation
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .padding(top = spacing.dp)
@@ -226,28 +221,24 @@ fun HudScreen() {
                         modifier = Modifier.fillMaxWidth()
                     )
                     
-                    // Professional unit spawn buttons
+                    // Professional unit spawn buttons - using old system for now
+                    // TODO: Integrate with proper GameState when HudScreen is refactored
+                    /*
                     ProfessionalSpawnButtons(
-                        gold = gold,
-                        currentLevel = currentLevel,
+                        gameState = gameState,
                         selectedRace = selectedRace,
-                        isUnitUnlocked = { unitType ->
+                        realGold = gold,
+                        onSpawnUnit = { progressionUnitType ->
                             val battleScene = gameSurface?.getSceneManager()?.getCurrentScene() as? BattleScene
-                            battleScene?.getWorld()?.isUnitUnlocked(unitType) ?: false
-                        },
-                        getUnlockLevel = { unitType ->
-                            val battleScene = gameSurface?.getSceneManager()?.getCurrentScene() as? BattleScene
-                            battleScene?.getWorld()?.getUnlockLevel(unitType) ?: 1
-                        },
-                        onSpawnUnit = { unitType ->
-                            val battleScene = gameSurface?.getSceneManager()?.getCurrentScene() as? BattleScene
-                            battleScene?.getWorld()?.spawnPlayerUnit(unitType, selectedRace)
+                            val engineUnitType = com.rubontech.raceofwar.ui.utils.UnitMapping.convertToEngineUnitType(progressionUnitType)
+                            battleScene?.getWorld()?.spawnPlayerUnit(engineUnitType, selectedRace)
                         },
                         onRaceChanged = { race ->
                             selectedRace = race
                         },
                         modifier = Modifier.fillMaxWidth()
                     )
+                    */
                 }
                 
                 // Game over overlay
