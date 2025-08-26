@@ -15,6 +15,8 @@ import com.rubontech.raceofwar.core.input.InputController
 import com.rubontech.raceofwar.engine.Scene
 import com.rubontech.raceofwar.gfx.ParallaxBackground
 import com.rubontech.raceofwar.gfx.RaceBackground
+import com.rubontech.raceofwar.game.entities.KnightUnit
+import com.rubontech.raceofwar.game.entities.UnitEntity
 
 /**
  * Main battle scene where the gameplay happens
@@ -64,8 +66,10 @@ class BattleScene(
         world.getPlayerBase().render(canvas)
         world.getEnemyBase().render(canvas)
         
-        world.getPlayerUnits().forEach { it.render(canvas) }
-        world.getEnemyUnits().forEach { it.render(canvas) }
+        // Render units with special handling for human knights
+        renderUnits(canvas, world.getPlayerUnits())
+        renderUnits(canvas, world.getEnemyUnits())
+        
         world.getBullets().forEach { it.render(canvas) }
         
         // Debug rendering
@@ -77,6 +81,65 @@ class BattleScene(
         if (world.gameState != World.GameState.PLAYING) {
             renderGameOverOverlay(canvas)
         }
+    }
+    
+    /**
+     * Render units with special handling for human knights
+     */
+    private fun renderUnits(canvas: Canvas, units: List<UnitEntity>) {
+        units.forEach { unit ->
+            if (unit is KnightUnit && unit.getUnitRace() == UnitEntity.Race.HUMAN_EMPIRE) {
+                // Initialize animator if needed
+                unit.initializeHumanAnimator(context)
+                
+                // Render using the human animator
+                val animator = unit.getHumanAnimator()
+                if (animator != null) {
+                    // Render the animated sprite
+                    animator.render(
+                        canvas,
+                        unit.x,
+                        unit.y,
+                        unit.width,
+                        unit.height,
+                        unit.getUnitTeam() == UnitEntity.Team.ENEMY
+                    )
+                    
+                    // Draw health bar separately
+                    drawHealthBar(canvas, unit)
+                } else {
+                    // Fallback to default rendering
+                    unit.render(canvas)
+                }
+            } else {
+                // Default rendering for other units
+                unit.render(canvas)
+            }
+        }
+    }
+    
+    /**
+     * Draw health bar for units
+     */
+    private fun drawHealthBar(canvas: Canvas, unit: UnitEntity) {
+        val barWidth = unit.width
+        val barHeight = 6f
+        val barY = unit.y - 10f
+        
+        // Background
+        val bgPaint = Paint().apply {
+            color = Color.RED
+            style = Paint.Style.FILL
+        }
+        canvas.drawRect(unit.x, barY, unit.x + barWidth, barY + barHeight, bgPaint)
+        
+        // Health fill
+        val healthRatio = unit.getHP() / unit.getMaxHP()
+        val healthPaint = Paint().apply {
+            color = Color.GREEN
+            style = Paint.Style.FILL
+        }
+        canvas.drawRect(unit.x, barY, unit.x + barWidth * healthRatio, barY + barHeight, healthPaint)
     }
     
     private fun renderDebugInfo(canvas: Canvas) {

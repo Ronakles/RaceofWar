@@ -229,6 +229,11 @@ abstract class UnitEntity(
     fun getHP(): Float = hp
     fun getMaxHP(): Float = maxHp
     
+    // Public getters for protected properties (with different names to avoid conflicts)
+    fun getUnitRace(): Race = race
+    fun getUnitTeam(): Team = team
+    fun getUnitState(): State = state
+    
     /**
      * Changes the race of this unit and updates its color
      */

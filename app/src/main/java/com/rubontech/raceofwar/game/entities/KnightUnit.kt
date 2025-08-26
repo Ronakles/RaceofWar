@@ -10,6 +10,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import com.rubontech.raceofwar.game.GameConfig
+import com.rubontech.raceofwar.gfx.HumanKnightAnimator
 
 /**
  * Knight unit - very high HP, medium damage, short range
@@ -18,8 +19,8 @@ class KnightUnit(
     x: Float,
     y: Float,
     team: UnitEntity.Team,
-    race: UnitEntity.Race = UnitEntity.Race.MECHANICAL_LEGION
-) : UnitEntity(x, y, team, UnitEntity.UnitType.KNIGHT, race) {
+    unitRace: UnitEntity.Race = UnitEntity.Race.MECHANICAL_LEGION
+) : UnitEntity(x, y, team, UnitEntity.UnitType.KNIGHT, unitRace) {
     
     companion object {
         private var elfBitmap: Bitmap? = null
@@ -87,9 +88,12 @@ class KnightUnit(
         fun getMechanicalBitmap(): Bitmap? = mechanicalBitmap
     }
     
+    // Human Knight Animator for Human Empire race
+    private var humanAnimator: HumanKnightAnimator? = null
+    
     init {
         // Set bitmap based on race
-        when (race) {
+        when (unitRace) {
             UnitEntity.Race.NATURE_TRIBE -> {
                 elfBitmap?.let { bitmap ->
                     sprite.setBitmap(bitmap)
@@ -102,9 +106,22 @@ class KnightUnit(
                     sprite.updateColor(android.graphics.Color.TRANSPARENT)
                 }
             }
+            UnitEntity.Race.HUMAN_EMPIRE -> {
+                // Human Empire uses the new animator
+                // The sprite will be handled by the animator
+            }
             else -> {
                 // Other races use default colored rectangle
             }
+        }
+    }
+    
+    override fun update(deltaTime: Float) {
+        super.update(deltaTime)
+        
+        // Update human animator if this is a human unit
+        if (getUnitRace() == UnitEntity.Race.HUMAN_EMPIRE) {
+            humanAnimator?.update(deltaTime, this)
         }
     }
     
@@ -129,7 +146,7 @@ class KnightUnit(
         canvas.drawRect(x, barY, x + barWidth, barY + barHeight, bgPaint)
         
         // Health fill
-        val healthRatio = hp / maxHp
+        val healthRatio = getHP() / getMaxHP()
         val healthPaint = android.graphics.Paint().apply {
             color = android.graphics.Color.GREEN
             style = android.graphics.Paint.Style.FILL
@@ -143,5 +160,27 @@ class KnightUnit(
         } else if (target is BaseEntity) {
             target.takeDamage(damage)
         }
+    }
+    
+    /**
+     * Initialize the human animator when needed
+     */
+    fun initializeHumanAnimator(context: Context) {
+        if (getUnitRace() == UnitEntity.Race.HUMAN_EMPIRE && humanAnimator == null) {
+            humanAnimator = HumanKnightAnimator(context)
+        }
+    }
+    
+    /**
+     * Get the human animator for rendering
+     */
+    fun getHumanAnimator(): HumanKnightAnimator? = humanAnimator
+    
+    /**
+     * Clean up resources
+     */
+    fun cleanup() {
+        humanAnimator?.cleanup()
+        humanAnimator = null
     }
 }
